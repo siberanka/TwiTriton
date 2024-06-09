@@ -9,7 +9,6 @@ import com.comphenix.protocol.events.PacketEvent;
 import com.comphenix.protocol.events.PacketListener;
 import com.comphenix.protocol.injector.GamePhase;
 import com.comphenix.protocol.reflect.FuzzyReflection;
-import com.comphenix.protocol.reflect.StructureModifier;
 import com.comphenix.protocol.reflect.accessors.Accessors;
 import com.comphenix.protocol.reflect.accessors.FieldAccessor;
 import com.comphenix.protocol.reflect.accessors.MethodAccessor;
@@ -17,9 +16,9 @@ import com.comphenix.protocol.reflect.fuzzy.FuzzyFieldContract;
 import com.comphenix.protocol.utility.MinecraftReflection;
 import com.comphenix.protocol.utility.MinecraftVersion;
 import com.comphenix.protocol.wrappers.BlockPosition;
-import com.comphenix.protocol.wrappers.BukkitConverters;
 import com.comphenix.protocol.wrappers.EnumWrappers;
 import com.comphenix.protocol.wrappers.WrappedChatComponent;
+import com.comphenix.protocol.wrappers.WrappedTeamParameters;
 import com.comphenix.protocol.wrappers.nbt.NbtCompound;
 import com.comphenix.protocol.wrappers.nbt.NbtFactory;
 import com.rexcantor64.triton.Triton;
@@ -61,7 +60,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static com.rexcantor64.triton.spigot.packetinterceptor.HandlerFunction.asAsync;
 import static com.rexcantor64.triton.spigot.packetinterceptor.HandlerFunction.asSync;
@@ -74,7 +72,6 @@ public class ProtocolLibListener implements PacketListener {
     private final MethodAccessor CRAFT_MERCHANT_RECIPE_TO_MINECRAFT_METHOD;
     private final Class<?> BOSSBAR_UPDATE_TITLE_ACTION_CLASS;
     private final Class<BaseComponent[]> BASE_COMPONENT_ARRAY_CLASS = BaseComponent[].class;
-    private StructureModifier<Object> SCOREBOARD_TEAM_METADATA_MODIFIER = null;
     private final Class<Component> ADVENTURE_COMPONENT_CLASS = Component.class;
     private final Optional<Class<?>> NUMBER_FORMAT_CLASS;
     private final FieldAccessor PLAYER_ACTIVE_CONTAINER_FIELD;
@@ -703,42 +700,48 @@ public class ProtocolLibListener implements PacketListener {
 
         if (mode != 0 && mode != 2) return; // Other modes don't change text
 
-        // Pack name tag visibility, collision rule, team color and friendly flags into list
-        val modifiers = packet.getPacket().getModifier();
-        List<Object> options;
         WrappedChatComponent displayName, prefix, suffix;
-        StructureModifier<WrappedChatComponent> chatComponents;
+        SpigotLanguagePlayer.ScoreboardTeam team;
 
         if (MinecraftVersion.CAVES_CLIFFS_1.atOrAbove()) { // 1.17+
-            Optional<?> meta = (Optional<?>) modifiers.readSafely(3);
-            if (!meta.isPresent()) return;
+            Optional<WrappedTeamParameters> paramsOpt = packet.getPacket().getOptionalTeamParameters().readSafely(0);
+            if (!paramsOpt.isPresent()) return;
 
-            val obj = meta.get();
+            val parameters = paramsOpt.get();
 
-            if (SCOREBOARD_TEAM_METADATA_MODIFIER == null)
-                SCOREBOARD_TEAM_METADATA_MODIFIER = new StructureModifier<>(obj.getClass());
-            val structure = SCOREBOARD_TEAM_METADATA_MODIFIER.withTarget(obj);
+            displayName = parameters.getDisplayName();
+            prefix = parameters.getPrefix();
+            suffix = parameters.getSuffix();
 
-            options = Stream.of(3, 4, 5, 6).map(structure::readSafely).collect(Collectors.toList());
-
-            chatComponents = structure.withType(MinecraftReflection.getIChatBaseComponentClass(), BukkitConverters.getWrappedChatComponentConverter());
-            displayName = chatComponents.read(0);
-            prefix = chatComponents.read(1);
-            suffix = chatComponents.read(2);
+            team = new SpigotLanguagePlayer.ScoreboardTeam(
+                    displayName.getJson(),
+                    prefix.getJson(),
+                    suffix.getJson(),
+                    parameters.getNametagVisibility(),
+                    parameters.getCollisionRule(),
+                    parameters.getColor(),
+                    parameters.getOptions()
+            );
         } else {
-            options = Stream.of(4, 5, 6, 9).map(modifiers::readSafely).collect(Collectors.toList());
-
-            chatComponents = packet.getPacket().getChatComponents();
+            val chatComponents = packet.getPacket().getChatComponents();
             displayName = chatComponents.readSafely(0);
             prefix = chatComponents.readSafely(1);
             suffix = chatComponents.readSafely(2);
+
+            team = new SpigotLanguagePlayer.ScoreboardTeam(
+                    displayName.getJson(),
+                    prefix.getJson(),
+                    suffix.getJson(),
+                    packet.getPacket().getStrings().readSafely(1),
+                    packet.getPacket().getStrings().readSafely(2),
+                    packet.getPacket().getChatFormattings().readSafely(0),
+                    packet.getPacket().getIntegers().readSafely(1)
+            );
         }
 
-        languagePlayer.setScoreboardTeam(teamName, displayName.getJson(), prefix.getJson(), suffix.getJson(), options);
+        languagePlayer.setScoreboardTeam(teamName, team);
 
-        int i = 0;
         for (WrappedChatComponent component : Arrays.asList(displayName, prefix, suffix)) {
-            final int currentIndex = i++;
             parser()
                     .translateComponent(
                             WrappedComponentUtils.deserialize(component),
@@ -746,8 +749,27 @@ public class ProtocolLibListener implements PacketListener {
                             main.getConfig().getScoreboardSyntax()
                     )
                     .getResultOrToRemove(Component::empty)
-                    .map(WrappedComponentUtils::serialize)
-                    .ifPresent(result -> chatComponents.writeSafely(currentIndex, result));
+                    .map(ComponentUtils::serializeToJson)
+                    .ifPresent(component::setJson);
+        }
+
+        if (MinecraftVersion.CAVES_CLIFFS_1.atOrAbove()) { // 1.17+
+            val parameters = WrappedTeamParameters.newBuilder()
+                    .displayName(displayName)
+                    .prefix(prefix)
+                    .suffix(suffix)
+                    .nametagVisibility(team.getNameTagVisibility())
+                    .collisionRule(team.getCollisionRule())
+                    .color(team.getColor())
+                    .options(team.getOptions())
+                    .build();
+
+            packet.getPacket().getOptionalTeamParameters().writeSafely(0, Optional.of(parameters));
+        } else {
+            val chatComponents = packet.getPacket().getChatComponents();
+            chatComponents.writeSafely(0, displayName);
+            chatComponents.writeSafely(1, prefix);
+            chatComponents.writeSafely(2, suffix);
         }
     }
 
@@ -959,34 +981,26 @@ public class ProtocolLibListener implements PacketListener {
             packet.getIntegers().writeSafely(0, 2); // Update team info mode
             packet.getStrings().writeSafely(0, key);
             if (MinecraftVersion.CAVES_CLIFFS_1.atOrAbove()) { // 1.17+
-                Optional<?> meta = (Optional<?>) packet.getModifier().readSafely(3);
-                if (!meta.isPresent()) {
-                    Triton.get().getLogger().logError("Triton was not able to refresh a scoreboard team, probably due to changes in ProtocolLib!");
-                    return;
-                }
+                val parameters = WrappedTeamParameters.newBuilder()
+                        .displayName(WrappedChatComponent.fromJson(value.getDisplayJson()))
+                        .prefix(WrappedChatComponent.fromJson(value.getPrefixJson()))
+                        .suffix(WrappedChatComponent.fromJson(value.getSuffixJson()))
+                        .nametagVisibility(value.getNameTagVisibility())
+                        .collisionRule(value.getCollisionRule())
+                        .color(value.getColor())
+                        .options(value.getOptions())
+                        .build();
 
-                val obj = meta.get();
-
-                if (SCOREBOARD_TEAM_METADATA_MODIFIER == null)
-                    SCOREBOARD_TEAM_METADATA_MODIFIER = new StructureModifier<>(obj.getClass());
-                val structure = SCOREBOARD_TEAM_METADATA_MODIFIER.withTarget(obj);
-
-                int j = 0;
-                for (int i : Arrays.asList(3, 4, 5, 6))
-                    structure.writeSafely(i, value.getOptionData().get(j++));
-
-                val chatComponents = structure.withType(
-                        MinecraftReflection.getIChatBaseComponentClass(), BukkitConverters.getWrappedChatComponentConverter());
-                chatComponents.writeSafely(0, WrappedChatComponent.fromJson(value.getDisplayJson()));
-                chatComponents.writeSafely(1, WrappedChatComponent.fromJson(value.getPrefixJson()));
-                chatComponents.writeSafely(2, WrappedChatComponent.fromJson(value.getSuffixJson()));
+                packet.getOptionalTeamParameters().writeSafely(0, Optional.of(parameters));
             } else {
                 packet.getChatComponents().writeSafely(0, WrappedChatComponent.fromJson(value.getDisplayJson()));
                 packet.getChatComponents().writeSafely(1, WrappedChatComponent.fromJson(value.getPrefixJson()));
                 packet.getChatComponents().writeSafely(2, WrappedChatComponent.fromJson(value.getSuffixJson()));
-                int j = 0;
-                for (int i : Arrays.asList(4, 5, 6, 9))
-                    packet.getModifier().writeSafely(i, value.getOptionData().get(j++));
+
+                packet.getStrings().writeSafely(1, value.getNameTagVisibility());
+                packet.getStrings().writeSafely(2, value.getCollisionRule());
+                packet.getChatFormattings().writeSafely(0, value.getColor());
+                packet.getIntegers().writeSafely(1, value.getOptions());
             }
 
             ProtocolLibrary.getProtocolManager().sendServerPacket(bukkitPlayer, packet, true);
