@@ -583,6 +583,12 @@ public class ProtocolLibListener implements PacketListener {
                 ItemStackTranslationUtils.translateItemStack(item, languagePlayer, true);
             }
             packet.getPacket().getItemListModifier().writeSafely(0, items);
+
+            if (MinecraftVersion.CAVES_CLIFFS_1.atOrAbove()) { // 1.17+
+                ItemStack carriedItem = packet.getPacket().getItemModifier().readSafely(0);
+                carriedItem = ItemStackTranslationUtils.translateItemStack(carriedItem, languagePlayer, false);
+                packet.getPacket().getItemModifier().writeSafely(0, carriedItem);
+            }
         } else {
             ItemStack[] items = packet.getPacket().getItemArrayModifier().readSafely(0);
             for (ItemStack item : items) {
