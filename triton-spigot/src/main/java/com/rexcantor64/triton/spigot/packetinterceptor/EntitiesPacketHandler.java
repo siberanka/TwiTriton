@@ -684,10 +684,11 @@ public class EntitiesPacketHandler extends PacketHandler {
                         .writeSafely(3, (int) Math.floor(humanEntity.getLocation().getZ() * 32.00D));
             }
             packetSpawn.getBytes()
-                    .writeSafely(0, (byte) (int) (humanEntity.getLocation().getYaw() * 256.0F / 360.0F))
-                    .writeSafely(1, (byte) (int) (humanEntity.getLocation().getPitch() * 256.0F / 360.0F));
+                    .writeSafely(0, (byte) Math.floor(humanEntity.getLocation().getPitch() * 256.0F / 360.0F))
+                    .writeSafely(1, (byte) Math.floor(humanEntity.getLocation().getYaw() * 256.0F / 360.0F));
             if (MinecraftVersion.CONFIG_PHASE_PROTOCOL_UPDATE.atOrAbove()) { // 1.20.2
-                packetSpawn.getBytes().writeSafely(2, (byte) 0);
+                // not exactly accurate, but the bukkit API does not provide access to the head yaw
+                packetSpawn.getBytes().writeSafely(2, (byte) Math.floor(humanEntity.getLocation().getYaw() * 256.0F / 360.0F));
                 val velocity = humanEntity.getVelocity();
                 packetSpawn.getIntegers()
                         .writeSafely(1, (int) (Math.max(-3.9d, Math.min(3.9d, velocity.getX())) * 8000.0d))
@@ -699,17 +700,21 @@ public class EntitiesPacketHandler extends PacketHandler {
                 packetSpawn.getDataWatcherModifier().writeSafely(0, WrappedDataWatcher.getEntityWatcher(humanEntity));
             }
 
-            // Even though this is sent in the spawn packet, we still need to send it again for some reason
-            val packetLook = createPacket(PacketType.Play.Server.ENTITY_HEAD_ROTATION);
-            packetLook.getIntegers().writeSafely(0, humanEntity.getEntityId());
-            packetLook.getBytes().writeSafely(0, (byte) (int) (humanEntity.getLocation().getYaw() * 256.0F / 360.0F));
-
             val isHiddenEntity = !languagePlayer.getShownPlayers().contains(humanEntity.getUniqueId());
             sendPacket(bukkitPlayer, packetRemove, true);
             sendPacket(bukkitPlayer, packetDestroy, true);
             sendPacket(bukkitPlayer, packetAdd, true);
             sendPacket(bukkitPlayer, packetSpawn, true);
-            sendPacket(bukkitPlayer, packetLook, true);
+
+            if (!MinecraftVersion.CONFIG_PHASE_PROTOCOL_UPDATE.atOrAbove()) { // 1.20.2
+                // Even though this is sent in the spawn packet, we still need to send it again for some reason
+                val packetLook = createPacket(PacketType.Play.Server.ENTITY_HEAD_ROTATION);
+                packetLook.getIntegers().writeSafely(0, humanEntity.getEntityId());
+                packetLook.getBytes().writeSafely(0, (byte) (int) (humanEntity.getLocation().getYaw() * 256.0F / 360.0F));
+
+                sendPacket(bukkitPlayer, packetLook, true);
+            }
+
             if (isHiddenEntity) {
                 // If the entity should not show up in tab, hide it again
                 Bukkit.getScheduler().runTaskLater(
