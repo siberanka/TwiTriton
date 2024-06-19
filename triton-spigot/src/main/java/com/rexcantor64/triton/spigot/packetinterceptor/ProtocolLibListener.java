@@ -175,8 +175,12 @@ public class ProtocolLibListener implements PacketListener {
 
             // New actionbar packet
             packetHandlers.put(PacketType.Play.Server.SET_ACTION_BAR_TEXT, asAsync(this::handleActionbar));
+
+            // Combat packet split on 1.17
+            packetHandlers.put(PacketType.Play.Server.PLAYER_COMBAT_KILL, asAsync(this::handleDeathScreen));
         } else {
             packetHandlers.put(PacketType.Play.Server.TITLE, asAsync(this::handleTitle));
+            packetHandlers.put(PacketType.Play.Server.COMBAT_EVENT, asAsync(this::handleDeathScreen));
         }
 
         packetHandlers.put(PacketType.Play.Server.PLAYER_LIST_HEADER_FOOTER, asAsync(this::handlePlayerListHeaderFooter));
@@ -748,6 +752,28 @@ public class ProtocolLibListener implements PacketListener {
                         WrappedComponentUtils.deserialize(displayName),
                         languagePlayer,
                         main.getConfig().getScoreboardSyntax()
+                )
+                .getResultOrToRemove(Component::empty)
+                .map(WrappedComponentUtils::serialize)
+                .ifPresent(result -> chatComponentsModifier.writeSafely(0, result));
+    }
+
+    private void handleDeathScreen(PacketEvent packet, SpigotLanguagePlayer languagePlayer) {
+        if (!main.getConfig().isDeathScreen()) return;
+
+        val chatComponentsModifier = packet.getPacket().getChatComponents();
+        val component = chatComponentsModifier.readSafely(0);
+        if (component == null) {
+            // Likely it's MC 1.16 or below and type of packet is not ENTITY_DIED.
+            // Alternatively, this will always be null on 1.8.8 since it uses a String, but there's nothing interesting to translate anyway.
+            return;
+        }
+
+        parser()
+                .translateComponent(
+                        WrappedComponentUtils.deserialize(component),
+                        languagePlayer,
+                        main.getConfig().getDeathScreenSyntax()
                 )
                 .getResultOrToRemove(Component::empty)
                 .map(WrappedComponentUtils::serialize)
