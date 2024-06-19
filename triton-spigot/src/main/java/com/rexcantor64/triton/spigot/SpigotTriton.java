@@ -25,7 +25,6 @@ import com.rexcantor64.triton.utils.ReflectionUtils;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
-import net.kyori.adventure.text.Component;
 import net.md_5.bungee.api.ChatColor;
 import org.bstats.bukkit.Metrics;
 import org.bstats.charts.SingleLineChart;
@@ -43,10 +42,6 @@ import java.util.concurrent.ExecutionException;
 
 public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManager> {
 
-    @Getter
-    private final short mcVersion;
-    @Getter
-    private final short minorMcVersion;
     private ProtocolLibListener protocolLibListener;
     @Getter
     private MaterialWrapperManager wrapperManager;
@@ -62,9 +57,6 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
 
     public SpigotTriton(PluginLoader loader) {
         super(new PlayerManager<>(SpigotLanguagePlayer::new), new SpigotBridgeManager());
-        val versionSplit = Bukkit.getServer().getClass().getPackage().getName().split("_");
-        mcVersion = Short.parseShort(versionSplit[1]);
-        minorMcVersion = Short.parseShort(versionSplit[2].substring(1));
         super.loader = loader;
     }
 

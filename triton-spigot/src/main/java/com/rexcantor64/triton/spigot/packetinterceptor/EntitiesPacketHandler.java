@@ -56,15 +56,15 @@ public class EntitiesPacketHandler extends PacketHandler {
     private final DataValueHandler dataValueHandler;
 
     public EntitiesPacketHandler() {
-        if (getMcVersion() < 9) {
-            // MC 1.8
-            this.dataWatcherHandler = new DataWatcherHandler1_8();
-        } else if (getMcVersion() < 13) {
+        if (MinecraftVersion.AQUATIC_UPDATE.atOrAbove()) { // 1.13+
+            // MC 1.13+
+            this.dataWatcherHandler = new DataWatcherHandler1_13();
+        } else if (MinecraftVersion.COMBAT_UPDATE.atOrAbove()) { // 1.9+
             // MC 1.9 to 1.12
             this.dataWatcherHandler = new DataWatcherHandler1_9();
         } else {
-            // MC 1.13+
-            this.dataWatcherHandler = new DataWatcherHandler1_13();
+            // MC 1.8
+            this.dataWatcherHandler = new DataWatcherHandler1_8();
         }
         this.dataValueHandler = new DataValueHandler();
     }
@@ -89,10 +89,10 @@ public class EntitiesPacketHandler extends PacketHandler {
 
         // Try to get the entity type
         EntityType entityType;
-        if (getMcVersion() >= 14) {
+        if (MinecraftVersion.VILLAGE_UPDATE.atOrAbove()) { // 1.14+
             // On MC 1.14+, the entity type is present on the packet
             entityType = EntityType.fromBukkit(packet.getPacket().getEntityTypeModifier().readSafely(0));
-        } else if (getMcVersion() >= 9) {
+        } else if (MinecraftVersion.COMBAT_UPDATE.atOrAbove()) { // 1.9+
             // On MC 1.9 to 1.13, we need to convert the entity type ID to an actual entity type object
             entityType = EntityTypeUtils.getEntityTypeByObjectId(packet.getPacket().getIntegers().readSafely(6));
         } else {
@@ -152,7 +152,7 @@ public class EntitiesPacketHandler extends PacketHandler {
         // Add entity to cache
         addEntity(languagePlayer.getEntitiesMap(), packet.getPlayer().getWorld(), entityId, Optional.empty());
 
-        if (getMcVersion() >= 15) {
+        if (MinecraftVersion.BEE_UPDATE.atOrAbove()) { // 1.15+
             // DataWatcher is not sent on 1.15 anymore in this packet
             return;
         }
@@ -269,10 +269,11 @@ public class EntitiesPacketHandler extends PacketHandler {
                 if (!skipHideCustomName.get()) {
                     newWatchableObjects.add(oldObject);
                 }
-            } else if (oldObject.getIndex() == 8 && getMcVersion() >= 13) {
+            } else if (oldObject.getIndex() == 8 && MinecraftVersion.AQUATIC_UPDATE.atOrAbove()) { // 1.13+
                 // Index 8 is "Item" of type "Slot"
                 // https://wiki.vg/Entity_metadata#Entity
                 // Used to translate items inside (glowing) item frames
+                // Introduced in MC 1.13
                 newWatchableObjects.add(
                         this.dataWatcherHandler.translateItemFrameItems(
                                 languagePlayer,
@@ -669,18 +670,18 @@ public class EntitiesPacketHandler extends PacketHandler {
             }
             packetSpawn.getIntegers().writeSafely(0, humanEntity.getEntityId());
             packetSpawn.getUUIDs().writeSafely(0, humanEntity.getUniqueId());
-            if (getMcVersion() < 9) {
-                // On MC 1.8, location is defined as an integer and multiplied by 32
-                packetSpawn.getIntegers()
-                        .writeSafely(1, (int) Math.floor(humanEntity.getLocation().getX() * 32.00D))
-                        .writeSafely(2, (int) Math.floor(humanEntity.getLocation().getY() * 32.00D))
-                        .writeSafely(3, (int) Math.floor(humanEntity.getLocation().getZ() * 32.00D));
-            } else {
+            if (MinecraftVersion.COMBAT_UPDATE.atOrAbove()) { // 1.9+
                 // On MC 1.9+, location is defined as a double
                 packetSpawn.getDoubles()
                         .writeSafely(0, humanEntity.getLocation().getX())
                         .writeSafely(1, humanEntity.getLocation().getY())
                         .writeSafely(2, humanEntity.getLocation().getZ());
+            } else {
+                // On MC 1.8, location is defined as an integer and multiplied by 32
+                packetSpawn.getIntegers()
+                        .writeSafely(1, (int) Math.floor(humanEntity.getLocation().getX() * 32.00D))
+                        .writeSafely(2, (int) Math.floor(humanEntity.getLocation().getY() * 32.00D))
+                        .writeSafely(3, (int) Math.floor(humanEntity.getLocation().getZ() * 32.00D));
             }
             packetSpawn.getBytes()
                     .writeSafely(0, (byte) (int) (humanEntity.getLocation().getYaw() * 256.0F / 360.0F))
@@ -955,7 +956,7 @@ public class EntitiesPacketHandler extends PacketHandler {
     @Override
     public void registerPacketTypes(Map<PacketType, HandlerFunction> registry) {
         registry.put(PacketType.Play.Server.SPAWN_ENTITY, asSync(this::handleSpawnEntity));
-        if (getMcVersion() < 19) {
+        if (!MinecraftVersion.WILD_UPDATE.atOrAbove()) {
             // 1.19 removed this packet
             registry.put(PacketType.Play.Server.SPAWN_ENTITY_LIVING, asSync(this::handleSpawnEntityLiving));
         }

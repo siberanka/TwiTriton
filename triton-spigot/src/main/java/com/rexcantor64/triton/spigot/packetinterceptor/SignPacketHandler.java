@@ -37,11 +37,18 @@ public class SignPacketHandler extends PacketHandler {
     private final String HANGING_SIGN_TYPE_ID;
 
     public SignPacketHandler() {
-        LEVEL_CHUNK_PACKET_DATA_CLASS = getMcVersion() >= 18 ?
-                ReflectionUtils.getClass("net.minecraft.network.protocol.game.ClientboundLevelChunkPacketData") : null;
-        TILE_ENTITY_TYPES_CLASS = getMcVersion() >= 18 ?
-                ReflectionUtils.getClass("net.minecraft.world.level.block.entity.TileEntityTypes") : null;
-        SIGN_TYPE_ID = getMcVersion() >= 11 ? "minecraft:sign" : "Sign";
+        if (MinecraftVersion.CAVES_CLIFFS_2.atOrAbove()) { // 1.18+
+            LEVEL_CHUNK_PACKET_DATA_CLASS = ReflectionUtils.getClass("net.minecraft.network.protocol.game.ClientboundLevelChunkPacketData");
+            TILE_ENTITY_TYPES_CLASS = ReflectionUtils.getClass("net.minecraft.world.level.block.entity.TileEntityTypes");
+        } else {
+            LEVEL_CHUNK_PACKET_DATA_CLASS = null;
+            TILE_ENTITY_TYPES_CLASS = null;
+        }
+        if (MinecraftVersion.EXPLORATION_UPDATE.atOrAbove()) { // 1.11+
+            SIGN_TYPE_ID = "minecraft:sign";
+        } else {
+            SIGN_TYPE_ID = "Sign";
+        }
         HANGING_SIGN_TYPE_ID = "minecraft:hanging_sign";
     }
 
@@ -226,7 +233,7 @@ public class SignPacketHandler extends PacketHandler {
 
             if (translateSignNbtCompound(compoundClone, signLocation, player, false, null)) {
                 PacketContainer packet;
-                if (getMcVersion() >= 18) {
+                if (MinecraftVersion.CAVES_CLIFFS_2.atOrAbove()) { // 1.18+
                     packet = buildTileEntityDataPacketPost1_18(signLocation, compoundClone, sign.getTileEntityType());
                 } else {
                     packet = buildTileEntityDataPacketPre1_18(signLocation, compoundClone);
@@ -429,7 +436,7 @@ public class SignPacketHandler extends PacketHandler {
 
     @Override
     public void registerPacketTypes(Map<PacketType, HandlerFunction> registry) {
-        if (getMcVersion() >= 18) {
+        if (MinecraftVersion.CAVES_CLIFFS_2.atOrAbove()) { // 1.18+
             registry.put(PacketType.Play.Server.MAP_CHUNK, asAsync(this::handleLevelChunk));
             registry.put(PacketType.Play.Server.TILE_ENTITY_DATA, asAsync(this::handleTileEntityDataPost1_18));
         } else if (!MinecraftReflection.signUpdateExists()) {

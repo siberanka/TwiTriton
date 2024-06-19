@@ -60,14 +60,14 @@ public class AdvancementsPacketHandler extends PacketHandler {
                 .filter(m -> m.getReturnType() == advancementDataWorldClass).findAny()
                 .orElseThrow(() -> new RuntimeException("Unable to find method getAdvancementData([])")));
 
-        if (getMcVersion() < 16) {
-            // MC 1.12-1.15
-            // Loading of achievements only needs the method to be called without any parameters
-            ADVANCEMENT_DATA_PLAYER_LOAD_FROM_ADVANCEMENT_DATA_WORLD_METHOD = Accessors.getMethodAccessor(advancementDataPlayerClass, "b");
-        } else {
+        if (MinecraftVersion.NETHER_UPDATE.atOrAbove()) { // 1.16+
             // MC 1.16+
             // Loading of achievements requires an AdvancementDataWorld method
             ADVANCEMENT_DATA_PLAYER_LOAD_FROM_ADVANCEMENT_DATA_WORLD_METHOD = Accessors.getMethodAccessor(advancementDataPlayerClass, "a", advancementDataWorldClass);
+        } else {
+            // MC 1.12-1.15
+            // Loading of achievements only needs the method to be called without any parameters
+            ADVANCEMENT_DATA_PLAYER_LOAD_FROM_ADVANCEMENT_DATA_WORLD_METHOD = Accessors.getMethodAccessor(advancementDataPlayerClass, "b");
         }
     }
 
@@ -181,14 +181,14 @@ public class AdvancementsPacketHandler extends PacketHandler {
 
             Bukkit.getScheduler().runTask(getMain().getLoader(), () -> {
                 // These are the same methods that are called from org.bukkit.craftbukkit.<version>.util.CraftMagicNumbers#loadAdvancement
-                if (getMcVersion() < 16) {
-                    // MC 1.12-1.15
-                    ADVANCEMENT_DATA_PLAYER_LOAD_FROM_ADVANCEMENT_DATA_WORLD_METHOD.invoke(advancementDataPlayer);
-                } else {
+                if (MinecraftVersion.NETHER_UPDATE.atOrAbove()) { // 1.16+
                     // MC 1.16+
                     val minecraftServer = CRAFT_SERVER_GET_SERVER_METHOD.invoke(Bukkit.getServer());
                     val advancementDataWorld = MINECRAFT_SERVER_GET_ADVANCEMENT_DATA_METHOD.invoke(minecraftServer);
                     ADVANCEMENT_DATA_PLAYER_LOAD_FROM_ADVANCEMENT_DATA_WORLD_METHOD.invoke(advancementDataPlayer, advancementDataWorld);
+                } else {
+                    // MC 1.12-1.15
+                    ADVANCEMENT_DATA_PLAYER_LOAD_FROM_ADVANCEMENT_DATA_WORLD_METHOD.invoke(advancementDataPlayer);
                 }
                 ADVANCEMENT_DATA_PLAYER_REFRESH_METHOD.invoke(advancementDataPlayer, nmsPlayer);
             });
