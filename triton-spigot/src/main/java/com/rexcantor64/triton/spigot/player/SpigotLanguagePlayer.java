@@ -1,5 +1,6 @@
 package com.rexcantor64.triton.spigot.player;
 
+import com.comphenix.protocol.wrappers.MinecraftKey;
 import com.comphenix.protocol.wrappers.nbt.NbtCompound;
 import com.rexcantor64.triton.Triton;
 import com.rexcantor64.triton.api.events.PlayerChangeLanguageSpigotEvent;
@@ -101,7 +102,7 @@ public class SpigotLanguagePlayer implements LanguagePlayer {
         this.teamsMap.remove(name);
     }
 
-    public void saveSign(SignLocation location, Object tileEntityType, NbtCompound nbtCompound) {
+    public void saveSign(SignLocation location, MinecraftKey tileEntityType, NbtCompound nbtCompound) {
         this.signs.put(location, new Sign(tileEntityType, nbtCompound));
     }
 
@@ -304,7 +305,7 @@ public class SpigotLanguagePlayer implements LanguagePlayer {
 
     @Data
     public static class Sign {
-        private final Object tileEntityType; // NMS class, use Object instead
+        private final MinecraftKey tileEntityType;
         private final NbtCompound compound;
     }
 
