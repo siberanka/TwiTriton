@@ -95,16 +95,7 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
         Bukkit.getPluginManager().registerEvents(guiManager = new GuiManager(), getLoader());
         Bukkit.getPluginManager().registerEvents(new BukkitListener(), getLoader());
 
-        // Setup ProtocolLib
-        if (getConfig().isAsyncProtocolLib()) {
-            val asyncManager = ProtocolLibrary.getProtocolManager().getAsynchronousManager();
-            asyncManager.registerAsyncHandler(protocolLibListener = new ProtocolLibListener(this, HandlerFunction.HandlerType.ASYNC)).start();
-            asyncManager.registerAsyncHandler(new MotdPacketHandler()).start();
-            ProtocolLibrary.getProtocolManager().addPacketListener(new ProtocolLibListener(this, HandlerFunction.HandlerType.SYNC));
-        } else {
-            ProtocolLibrary.getProtocolManager().addPacketListener(protocolLibListener = new ProtocolLibListener(this, HandlerFunction.HandlerType.ASYNC, HandlerFunction.HandlerType.SYNC));
-            ProtocolLibrary.getProtocolManager().addPacketListener(new MotdPacketHandler());
-        }
+        registerProtocolLibListeners();
 
         if (getConfig().isBungeecord()) {
             if (!isSpigotProxyMode() && !isPaperProxyMode()) {
@@ -127,6 +118,29 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
         if (getConfig().isTerminal()) {
             Log4jInjector.injectAppender();
         }
+    }
+
+    private void registerProtocolLibListeners() {
+        if (getConfig().isAsyncProtocolLib()) {
+            protocolLibListener = new ProtocolLibListener(this, HandlerFunction.HandlerType.ASYNC);
+        } else {
+            protocolLibListener = new ProtocolLibListener(this, HandlerFunction.HandlerType.ASYNC, HandlerFunction.HandlerType.SYNC);
+        }
+
+        // Use delayed task to try to be the last registered listener and therefore have the final say in packets
+        Bukkit.getScheduler().scheduleSyncDelayedTask(getLoader(), () -> {
+            if (getConfig().isAsyncProtocolLib()) {
+                val asyncManager = ProtocolLibrary.getProtocolManager().getAsynchronousManager();
+                asyncManager.registerAsyncHandler(protocolLibListener).start();
+                asyncManager.registerAsyncHandler(new MotdPacketHandler()).start();
+                ProtocolLibrary.getProtocolManager().addPacketListener(new ProtocolLibListener(this, HandlerFunction.HandlerType.SYNC));
+            } else {
+                ProtocolLibrary.getProtocolManager().addPacketListener(protocolLibListener);
+                ProtocolLibrary.getProtocolManager().addPacketListener(new MotdPacketHandler());
+            }
+            getLogger().logInfo("Registered ProtocolLib listeners");
+        }, 1L);
+
     }
 
     @SneakyThrows
