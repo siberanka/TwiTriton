@@ -96,15 +96,13 @@ public class ProtocolLibListener implements PacketListener {
     public ProtocolLibListener(SpigotTriton main, HandlerFunction.HandlerType... allowedTypes) {
         this.main = main;
         this.allowedTypes = Arrays.asList(allowedTypes);
-        if (MinecraftVersion.CAVES_CLIFFS_1.atOrAbove()) { // 1.17+
-            MERCHANT_RECIPE_LIST_CLASS = ReflectionUtils.getClass("net.minecraft.world.item.trading.MerchantRecipeList");
-        } else if (MinecraftVersion.VILLAGE_UPDATE.atOrAbove()) { // 1.14+
-            MERCHANT_RECIPE_LIST_CLASS = NMSUtils.getNMSClass("MerchantRecipeList");
+        if (MinecraftVersion.VILLAGE_UPDATE.atOrAbove()) { // 1.14+
+            MERCHANT_RECIPE_LIST_CLASS = MinecraftReflection.getMerchantRecipeList();
         } else {
             MERCHANT_RECIPE_LIST_CLASS = null;
         }
         if (MinecraftVersion.VILLAGE_UPDATE.atOrAbove()) { // 1.14+
-            val craftMerchantRecipeClass = NMSUtils.getCraftbukkitClass("inventory.CraftMerchantRecipe");
+            val craftMerchantRecipeClass = MinecraftReflection.getCraftBukkitClass("inventory.CraftMerchantRecipe");
             CRAFT_MERCHANT_RECIPE_FROM_BUKKIT_METHOD = Accessors.getMethodAccessor(craftMerchantRecipeClass, "fromBukkit", MerchantRecipe.class);
             CRAFT_MERCHANT_RECIPE_TO_MINECRAFT_METHOD = Accessors.getMethodAccessor(craftMerchantRecipeClass, "toMinecraft");
         } else {
@@ -117,7 +115,7 @@ public class ProtocolLibListener implements PacketListener {
             MERCHANT_RECIPE_SPECIAL_PRICE_FIELD = "g";
             MERCHANT_RECIPE_DEMAND_FIELD = "h";
         } else {
-            CONTAINER_PLAYER_CLASS = NMSUtils.getNMSClass("ContainerPlayer");
+            CONTAINER_PLAYER_CLASS = MinecraftReflection.getMinecraftClass("ContainerPlayer");
             BOSSBAR_UPDATE_TITLE_ACTION_CLASS = null;
             MERCHANT_RECIPE_SPECIAL_PRICE_FIELD = "specialPrice";
             MERCHANT_RECIPE_DEMAND_FIELD = "demand";
