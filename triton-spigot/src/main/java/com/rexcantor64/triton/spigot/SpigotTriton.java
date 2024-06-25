@@ -32,6 +32,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.CommandMap;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.util.Objects;
@@ -64,6 +65,10 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
         return (SpigotPlugin) this.loader;
     }
 
+    public JavaPlugin getJavaPlugin() {
+        return this.getLoader().getPlugin();
+    }
+
     public static SpigotTriton asSpigot() {
         return (SpigotTriton) instance;
     }
@@ -76,11 +81,11 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
 
         if (!this.isProtocolLibAvailable()) {
             getLogger().logError("Shutting down...");
-            Bukkit.getPluginManager().disablePlugin(getLoader());
+            Bukkit.getPluginManager().disablePlugin(getJavaPlugin());
             return;
         }
 
-        Metrics metrics = new Metrics(getLoader(), 5606);
+        Metrics metrics = new Metrics(getJavaPlugin(), 5606);
         metrics.addCustomChart(new SingleLineChart("active_placeholders",
                 () -> this.getTranslationManager().getTranslationCount()));
 
@@ -90,10 +95,10 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
         // Setup commands
         this.commandHandler = new SpigotCommandHandler();
         registerTritonCommand().setExecutor(this.commandHandler);
-        Objects.requireNonNull(getLoader().getCommand("twin")).setExecutor(this.commandHandler);
+        Objects.requireNonNull(getJavaPlugin().getCommand("twin")).setExecutor(this.commandHandler);
         // Setup listeners
-        Bukkit.getPluginManager().registerEvents(guiManager = new GuiManager(), getLoader());
-        Bukkit.getPluginManager().registerEvents(new BukkitListener(), getLoader());
+        Bukkit.getPluginManager().registerEvents(guiManager = new GuiManager(), getJavaPlugin());
+        Bukkit.getPluginManager().registerEvents(new BukkitListener(), getJavaPlugin());
 
         registerProtocolLibListeners();
 
@@ -105,9 +110,9 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
                 getLogger().logError("DANGER! DANGER! DANGER!");
             }
 
-            val messenger = getLoader().getServer().getMessenger();
-            messenger.registerOutgoingPluginChannel(getLoader(), "triton:main");
-            messenger.registerIncomingPluginChannel(getLoader(), "triton:main", getBridgeManager());
+            val messenger = getJavaPlugin().getServer().getMessenger();
+            messenger.registerOutgoingPluginChannel(getJavaPlugin(), "triton:main");
+            messenger.registerIncomingPluginChannel(getJavaPlugin(), "triton:main", getBridgeManager());
         }
 
         if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
@@ -128,7 +133,7 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
         }
 
         // Use delayed task to try to be the last registered listener and therefore have the final say in packets
-        Bukkit.getScheduler().scheduleSyncDelayedTask(getLoader(), () -> {
+        Bukkit.getScheduler().scheduleSyncDelayedTask(getJavaPlugin(), () -> {
             if (getConfig().isAsyncProtocolLib()) {
                 val asyncManager = ProtocolLibrary.getProtocolManager().getAsynchronousManager();
                 asyncManager.registerAsyncHandler(protocolLibListener).start();
@@ -147,7 +152,7 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
     private PluginCommand registerTritonCommand() {
         val constructor = PluginCommand.class.getDeclaredConstructor(String.class, Plugin.class);
         constructor.setAccessible(true);
-        val command = (PluginCommand) constructor.newInstance("triton", getLoader());
+        val command = (PluginCommand) constructor.newInstance("triton", getJavaPlugin());
 
         command.setAliases(getConfig().getCommandAliases());
         command.setDescription("The main command of Triton.");
@@ -169,7 +174,7 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
         if (refreshTaskId != -1) Bukkit.getScheduler().cancelTask(refreshTaskId);
         if (getConfig().getConfigAutoRefresh() <= 0) return;
         refreshTaskId = Bukkit.getScheduler()
-                .scheduleSyncDelayedTask(getLoader(), this::reload, getConfig().getConfigAutoRefresh() * 20L);
+                .scheduleSyncDelayedTask(getJavaPlugin(), this::reload, getConfig().getConfigAutoRefresh() * 20L);
     }
 
     /**
@@ -211,7 +216,7 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
     }
 
     public File getDataFolder() {
-        return getLoader().getDataFolder();
+        return getJavaPlugin().getDataFolder();
     }
 
     public SpigotBridgeManager getBridgeManager() {
@@ -248,7 +253,7 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
 
     @Override
     public String getVersion() {
-        return getLoader().getDescription().getVersion();
+        return getJavaPlugin().getDescription().getVersion();
     }
 
     @Override
@@ -258,7 +263,7 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
 
     @Override
     public void runAsync(Runnable runnable) {
-        Bukkit.getScheduler().runTaskAsynchronously(getLoader(), runnable);
+        Bukkit.getScheduler().runTaskAsynchronously(getJavaPlugin(), runnable);
     }
 
     public <T> Optional<T> callSync(Callable<T> callable) {
@@ -266,7 +271,7 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
             if (Bukkit.getServer().isPrimaryThread()) {
                 return Optional.ofNullable(callable.call());
             }
-            return Optional.ofNullable(Bukkit.getScheduler().callSyncMethod(getLoader(), callable).get());
+            return Optional.ofNullable(Bukkit.getScheduler().callSyncMethod(getJavaPlugin(), callable).get());
         } catch (InterruptedException | ExecutionException e) {
             return Optional.empty();
         } catch (Exception e) {

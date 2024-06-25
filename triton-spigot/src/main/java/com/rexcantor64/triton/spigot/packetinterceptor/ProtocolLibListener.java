@@ -24,6 +24,7 @@ import com.comphenix.protocol.wrappers.nbt.NbtFactory;
 import com.rexcantor64.triton.Triton;
 import com.rexcantor64.triton.api.language.MessageParser;
 import com.rexcantor64.triton.language.item.SignLocation;
+import com.rexcantor64.triton.language.parser.AdventureParser;
 import com.rexcantor64.triton.spigot.SpigotTriton;
 import com.rexcantor64.triton.spigot.player.SpigotLanguagePlayer;
 import com.rexcantor64.triton.spigot.utils.BaseComponentUtils;
@@ -149,10 +150,10 @@ public class ProtocolLibListener implements PacketListener {
 
     @Override
     public Plugin getPlugin() {
-        return main.getLoader();
+        return main.getJavaPlugin();
     }
 
-    private MessageParser parser() {
+    private AdventureParser parser() {
         return main.getMessageParser();
     }
 
@@ -828,7 +829,7 @@ public class ProtocolLibListener implements PacketListener {
         }
         if (packet.getPacketType() == PacketType.Play.Client.SETTINGS) {
             Bukkit.getScheduler().runTask(
-                    main.getLoader(),
+                    main.getJavaPlugin(),
                     () -> languagePlayer.setLang(
                             main.getLanguageManager()
                                     .getLanguageByLocaleOrDefault(packet.getPacket().getStrings().readSafely(0))
@@ -838,7 +839,7 @@ public class ProtocolLibListener implements PacketListener {
             val clientConfigurations = packet.getPacket().getStructures().withType(WrappedClientConfiguration.getWrappedClass(), WrappedClientConfiguration.CONVERTER);
             val locale = clientConfigurations.readSafely(0).getLocale();
             val language = main.getLanguageManager().getLanguageByLocaleOrDefault(locale);
-            Bukkit.getScheduler().runTaskLater(main.getLoader(), () -> languagePlayer.setLang(language), 2L);
+            Bukkit.getScheduler().runTaskLater(main.getJavaPlugin(), () -> languagePlayer.setLang(language), 2L);
         }
     }
 
