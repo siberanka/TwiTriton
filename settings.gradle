@@ -1,7 +1,6 @@
 rootProject.name = 'Triton'
 include 'api'
 include 'spigot-legacy'
-include 'v1_13'
 include 'core'
 include 'triton-bungeecord'
 include 'triton-spigot'

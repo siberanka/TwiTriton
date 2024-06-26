@@ -7,8 +7,8 @@ group 'com.rexcantor64.triton'
 
 dependencies {
     compileOnly project(':core:triton-core-loader')
-    compileOnly project(path: ":api")
-    compileOnly project(path: ":core")
+    compileOnly project(':api')
+    compileOnly project(':core')
 
     compileOnly 'net.md-5:bungeecord-api:1.21-R0.1-SNAPSHOT'
     compileOnly 'net.md-5:bungeecord-proxy:1.21-R0.1-SNAPSHOT'
