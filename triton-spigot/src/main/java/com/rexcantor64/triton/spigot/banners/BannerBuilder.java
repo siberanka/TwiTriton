@@ -1,14 +1,11 @@
 package com.rexcantor64.triton.spigot.banners;
 
-import com.comphenix.protocol.utility.MinecraftVersion;
 import com.rexcantor64.triton.Triton;
 import com.rexcantor64.triton.api.language.Language;
 import com.rexcantor64.triton.spigot.SpigotTriton;
 import lombok.val;
 import net.md_5.bungee.api.ChatColor;
-import org.bukkit.DyeColor;
 import org.bukkit.block.banner.Pattern;
-import org.bukkit.block.banner.PatternType;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BannerMeta;
@@ -62,8 +59,8 @@ public class BannerBuilder {
         ItemStack itemStack = new ItemStack(SpigotTriton.asSpigot().getWrapperManager().getBannerMaterial());
         BannerMeta bannerMeta = Objects.requireNonNull((BannerMeta) itemStack.getItemMeta());
         for (Banner.Layer layer : banner.getLayers()) {
-            val dyeColor = getDyeColor(layer.getColor());
-            val patternType = PatternType.valueOf(layer.getPattern().getType());
+            val dyeColor = layer.getColor().toDyeColor();
+            val patternType = layer.getPattern().toPatternType();
             bannerMeta.addPattern(new Pattern(dyeColor, patternType));
         }
         bannerMeta.setDisplayName(ChatColor.translateAlternateColorCodes('&', displayName));
@@ -74,14 +71,6 @@ public class BannerBuilder {
         bannerMeta.addItemFlags(ITEM_FLAGS);
         itemStack.setItemMeta(bannerMeta);
         return itemStack;
-    }
-
-    private static DyeColor getDyeColor(Colors color) {
-        if (color == Colors.GRAY && MinecraftVersion.AQUATIC_UPDATE.atOrAbove()) {
-            // On 1.12 and below, this color is called "SILVER"
-            return DyeColor.valueOf("SILVER");
-        }
-        return DyeColor.valueOf(color.getColor());
     }
 
 }
