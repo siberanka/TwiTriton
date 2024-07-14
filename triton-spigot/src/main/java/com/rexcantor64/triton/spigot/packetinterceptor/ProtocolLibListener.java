@@ -11,7 +11,6 @@ import com.comphenix.protocol.injector.GamePhase;
 import com.comphenix.protocol.reflect.FuzzyReflection;
 import com.comphenix.protocol.reflect.accessors.Accessors;
 import com.comphenix.protocol.reflect.accessors.FieldAccessor;
-import com.comphenix.protocol.reflect.accessors.MethodAccessor;
 import com.comphenix.protocol.reflect.fuzzy.FuzzyFieldContract;
 import com.comphenix.protocol.utility.MinecraftReflection;
 import com.comphenix.protocol.utility.MinecraftVersion;
@@ -34,7 +33,6 @@ import com.rexcantor64.triton.spigot.utils.NMSUtils;
 import com.rexcantor64.triton.spigot.utils.WrappedComponentUtils;
 import com.rexcantor64.triton.spigot.wrappers.WrappedClientConfiguration;
 import com.rexcantor64.triton.utils.ComponentUtils;
-import com.rexcantor64.triton.utils.ReflectionUtils;
 import com.rexcantor64.triton.wrappers.WrappedPlayerChatMessage;
 import lombok.val;
 import net.kyori.adventure.text.Component;
@@ -68,15 +66,10 @@ import static com.rexcantor64.triton.spigot.packetinterceptor.HandlerFunction.as
 @SuppressWarnings({"deprecation"})
 public class ProtocolLibListener implements PacketListener {
     private final Class<?> CONTAINER_PLAYER_CLASS;
-    private final Class<?> MERCHANT_RECIPE_LIST_CLASS;
-    private final MethodAccessor CRAFT_MERCHANT_RECIPE_FROM_BUKKIT_METHOD;
-    private final MethodAccessor CRAFT_MERCHANT_RECIPE_TO_MINECRAFT_METHOD;
     private final Class<BaseComponent[]> BASE_COMPONENT_ARRAY_CLASS = BaseComponent[].class;
     private final Class<Component> ADVENTURE_COMPONENT_CLASS = Component.class;
     private final FieldAccessor PLAYER_ACTIVE_CONTAINER_FIELD;
     private final FieldAccessor PLAYER_INVENTORY_CONTAINER_FIELD;
-    private final String MERCHANT_RECIPE_SPECIAL_PRICE_FIELD;
-    private final String MERCHANT_RECIPE_DEMAND_FIELD;
     private final String SIGN_NBT_ID;
 
     private final HandlerFunction ASYNC_PASSTHROUGH = asAsync((_packet, _player) -> {
@@ -95,26 +88,6 @@ public class ProtocolLibListener implements PacketListener {
     public ProtocolLibListener(SpigotTriton main, HandlerFunction.HandlerType... allowedTypes) {
         this.main = main;
         this.allowedTypes = Arrays.asList(allowedTypes);
-        if (MinecraftVersion.VILLAGE_UPDATE.atOrAbove()) { // 1.14+
-            MERCHANT_RECIPE_LIST_CLASS = MinecraftReflection.getMerchantRecipeList();
-        } else {
-            MERCHANT_RECIPE_LIST_CLASS = null;
-        }
-        if (MinecraftVersion.VILLAGE_UPDATE.atOrAbove()) { // 1.14+
-            val craftMerchantRecipeClass = MinecraftReflection.getCraftBukkitClass("inventory.CraftMerchantRecipe");
-            CRAFT_MERCHANT_RECIPE_FROM_BUKKIT_METHOD = Accessors.getMethodAccessor(craftMerchantRecipeClass, "fromBukkit", MerchantRecipe.class);
-            CRAFT_MERCHANT_RECIPE_TO_MINECRAFT_METHOD = Accessors.getMethodAccessor(craftMerchantRecipeClass, "toMinecraft");
-        } else {
-            CRAFT_MERCHANT_RECIPE_FROM_BUKKIT_METHOD = null;
-            CRAFT_MERCHANT_RECIPE_TO_MINECRAFT_METHOD = null;
-        }
-        if (MinecraftVersion.CAVES_CLIFFS_1.atOrAbove()) { // 1.17+
-            MERCHANT_RECIPE_SPECIAL_PRICE_FIELD = "g";
-            MERCHANT_RECIPE_DEMAND_FIELD = "h";
-        } else {
-            MERCHANT_RECIPE_SPECIAL_PRICE_FIELD = "specialPrice";
-            MERCHANT_RECIPE_DEMAND_FIELD = "demand";
-        }
         if (MinecraftVersion.EXPLORATION_UPDATE.atOrAbove()) { // 1.11+
             SIGN_NBT_ID = "minecraft:sign";
         } else {
@@ -200,8 +173,8 @@ public class ProtocolLibListener implements PacketListener {
         }
         packetHandlers.put(PacketType.Play.Server.WINDOW_ITEMS, asAsync(this::handleWindowItems));
         packetHandlers.put(PacketType.Play.Server.SET_SLOT, asAsync(this::handleSetSlot));
-        if (MinecraftVersion.VILLAGE_UPDATE.atOrAbove()) { // 1.14+
-            // Villager merchant interface redesign on 1.14
+        if (MinecraftVersion.CAVES_CLIFFS_2.atOrAbove()) { // 1.18+
+            // While the villager merchant interface redesign was on 1.14, the Bukkit API only has all fields on 1.18
             packetHandlers.put(PacketType.Play.Server.OPEN_WINDOW_MERCHANT, asAsync(this::handleMerchantItems));
         }
 
@@ -606,37 +579,34 @@ public class ProtocolLibListener implements PacketListener {
         packet.getPacket().getItemModifier().writeSafely(0, item);
     }
 
-    @SuppressWarnings({"unchecked"})
     private void handleMerchantItems(PacketEvent packet, SpigotLanguagePlayer languagePlayer) {
         if (!main.getConfig().isItems()) return;
 
-        try {
-            ArrayList<?> recipes = (ArrayList<?>) packet.getPacket()
-                    .getSpecificModifier(MERCHANT_RECIPE_LIST_CLASS).readSafely(0);
-            ArrayList<Object> newRecipes = (ArrayList<Object>) MERCHANT_RECIPE_LIST_CLASS.newInstance();
-            for (val recipeObject : recipes) {
-                val recipe = (MerchantRecipe) ReflectionUtils.getMethod(recipeObject, "asBukkit");
-                val originalSpecialPrice = ReflectionUtils.getDeclaredField(recipeObject, MERCHANT_RECIPE_SPECIAL_PRICE_FIELD);
-                val originalDemand = ReflectionUtils.getDeclaredField(recipeObject, MERCHANT_RECIPE_DEMAND_FIELD);
+        val recipes = packet.getPacket().getMerchantRecipeLists().readSafely(0);
+        val newRecipes = new ArrayList<MerchantRecipe>();
 
-                val newRecipe = new MerchantRecipe(ItemStackTranslationUtils.translateItemStack(recipe.getResult()
-                        .clone(), languagePlayer, false), recipe.getUses(), recipe.getMaxUses(), recipe
-                        .hasExperienceReward(), recipe.getVillagerExperience(), recipe.getPriceMultiplier());
+        for (val recipe : recipes) {
+            // Unfortunately this constructor does not exist in older Bukkit versions
+            // https://hub.spigotmc.org/stash/projects/SPIGOT/repos/bukkit/commits/5dca4a4b8455ba1ee8d3e4e36894f6dcc4b04555
+            val newRecipe = new MerchantRecipe(
+                    ItemStackTranslationUtils.translateItemStack(recipe.getResult().clone(), languagePlayer, false),
+                    recipe.getUses(),
+                    recipe.getMaxUses(),
+                    recipe.hasExperienceReward(),
+                    recipe.getVillagerExperience(),
+                    recipe.getPriceMultiplier(),
+                    recipe.getDemand(),
+                    recipe.getSpecialPrice()
+            );
 
-                for (val ingredient : recipe.getIngredients()) {
-                    newRecipe.addIngredient(ItemStackTranslationUtils.translateItemStack(ingredient.clone(), languagePlayer, false));
-                }
-
-                Object newCraftRecipe = CRAFT_MERCHANT_RECIPE_FROM_BUKKIT_METHOD.invoke(null, newRecipe);
-                Object newNMSRecipe = CRAFT_MERCHANT_RECIPE_TO_MINECRAFT_METHOD.invoke(newCraftRecipe);
-                ReflectionUtils.setDeclaredField(newNMSRecipe, MERCHANT_RECIPE_SPECIAL_PRICE_FIELD, originalSpecialPrice);
-                ReflectionUtils.setDeclaredField(newNMSRecipe, MERCHANT_RECIPE_DEMAND_FIELD, originalDemand);
-                newRecipes.add(newNMSRecipe);
+            for (val ingredient : recipe.getIngredients()) {
+                newRecipe.addIngredient(ItemStackTranslationUtils.translateItemStack(ingredient.clone(), languagePlayer, false));
             }
-            packet.getPacket().getModifier().writeSafely(1, newRecipes);
-        } catch (IllegalAccessException | InstantiationException e) {
-            Triton.get().getLogger().logError(e, "Failed to translate merchant items.");
+
+            newRecipes.add(newRecipe);
         }
+
+        packet.getPacket().getMerchantRecipeLists().writeSafely(0, newRecipes);
     }
 
     private void handleScoreboardTeam(PacketEvent packet, SpigotLanguagePlayer languagePlayer) {
