@@ -21,6 +21,7 @@ import com.rexcantor64.triton.storage.LocalStorage;
 import com.rexcantor64.triton.storage.MysqlStorage;
 import com.rexcantor64.triton.storage.Storage;
 import com.rexcantor64.triton.utils.FileUtils;
+import com.rexcantor64.triton.utils.TritonAPIUtils;
 import com.rexcantor64.triton.web.TwinManager;
 import lombok.Getter;
 import lombok.val;
@@ -86,6 +87,9 @@ public abstract class Triton<P extends LanguagePlayer, B extends BridgeManager> 
     }
 
     protected void onEnable() {
+        instance = this;
+        TritonAPIUtils.register(instance);
+
         translationsFolder = new File(getDataFolder(), "translations");
 
         logger = loader.getTritonLogger();

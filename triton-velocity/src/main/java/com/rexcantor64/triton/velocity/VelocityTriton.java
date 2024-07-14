@@ -47,7 +47,6 @@ public class VelocityTriton extends Triton<VelocityLanguagePlayer, VelocityBridg
 
     @Override
     public void onEnable() {
-        instance = this;
         super.onEnable();
 
         // bStats
