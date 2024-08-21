@@ -69,6 +69,10 @@ public class VelocityLanguagePlayer implements LanguagePlayer {
         return Collections.unmodifiableMap(bossBars);
     }
 
+    public void clearCachedBossbars() {
+        bossBars.clear();
+    }
+
     public void cachePlayerListItem(UUID uuid, Component lastDisplayName) {
         playerListItemCache.put(uuid, lastDisplayName);
     }
