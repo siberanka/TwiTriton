@@ -90,3 +90,106 @@ To compile, clone this repository and run the following command:
 ```sh
 ./gradlew shadowJar
 ```
+
+## MiniMessage & Security Features
+
+Triton includes support for Kyori's Adventure MiniMessage format natively in translations.
+
+### Features
+- **Auto-Detection**: Strings containing standard MiniMessage tags (e.g. `<green>`, `<gradient:red:blue>`, hex codes) are automatically detected and parsed as MiniMessage without requiring any prefixes.
+- **Prefixes**: Explicitly enforce formats by prefixing translation values with `[minimsg]` for MiniMessage or `[triton_json]` for raw JSON components.
+- **Triton Custom Tag**: Use the `<triton:key>` tag in MiniMessage templates to import/embed another translation raw value into the current template (useful for shared color palettes or reusable formats).
+
+### Security & Safe Translations
+To prevent click-action (command execution) injection or structure exploits from player-provided inputs/arguments (e.g., chat messages or player names inside placeholders):
+- **Click Event Stripping**: When `safe-translations` is enabled in `config.yml`, click actions are completely stripped from translation arguments. If the original translation template doesn't define click events, all click events will also be stripped from the final formatted message.
+- **Delimiter Sanitization**: Internal parser delimiter characters (used to demarcate styles/events recursively) are scrubbed from arguments to prevent delimiter-injection attacks.
+
+---
+
+# Triton (Türkçe)
+
+Triton, Minecraft sunucunuzu çevirmenize yardımcı olan Spigot/Paper, BungeeCord ve Velocity için geliştirilmiş bir Minecraft eklentisidir! Aynı mesajı farklı dillerdeki oyunculara kendi dillerinde gönderir ve tüm eklentilerle entegre çalışır.
+
+Eklentiyi [Spigot](https://spigotmc.org/resources/triton.30331/) veya [Polymart](https://polymart.org/resource/triton.38) üzerinden satın alabilirsiniz.
+
+## API Kullanımı
+
+Triton API'sini kullanmanın önerilen yolu Gradle/Maven kütüphanelerini eklemektir. Aşağıda belirtilen Maven deposu Triton v3.11.2 sürümünden itibaren kullanılabilir.
+
+<details>
+<summary>Gradle (Groovy) Yönergeleri</summary>
+
+Öncelikle projenize aşağıdaki depoyu (repository) ekleyin:
+
+```groovy
+repositories {
+    maven {
+        url "https://repo.diogotc.com/releases"
+    }
+}
+```
+
+Ardından Triton API bağımlılığını ekleyebilirsiniz. `compileOnly` kullanarak eklentinizi göerken API'yi gömmediğinizden (shade etmediğinizden) emin olun.
+
+```groovy
+dependencies {
+    // Sürümü en güncel olanla değiştirin
+    compileOnly "com.rexcantor64.triton:triton-api:4.0.1-fork"
+}
+```
+</details>
+
+<details>
+<summary>Maven Yönergeleri</summary>
+
+Öncelikle projenize aşağıdaki depoyu ekleyin:
+
+```xml
+<repository>
+  <id>diogotc-repository-releases</id>
+  <name>Diogo Correia's Releases Repository</name>
+  <url>https://repo.diogotc.com/releases</url>
+</repository>
+```
+
+Ardından Triton API bağımlılığını ekleyebilirsiniz. `scope` değerini `provided` olarak ayarlayarak API'yi gömmediğinizden emin olun.
+
+```xml
+<dependency>
+  <groupId>com.rexcantor64.triton</groupId>
+  <artifactId>triton-api</artifactId>
+  <!-- Sürümü en güncel olanla değiştirin -->
+  <version>4.0.1-fork</version>
+  <scope>provided</scope>
+</dependency>
+```
+</details>
+
+Geliştirme konusunda yardıma mı ihtiyacınız var? [Wiki](https://github.com/tritonmc/Triton/wiki) sayfamıza, [JavaDocs](https://triton.rexcantor64.com/javadocs) dokümanlarımıza göz atın veya [Discord](https://triton.rexcantor64.com/discord) sunucumuza katılın!
+
+Eski API sürümlerini mi arıyorsunuz? [İndirme sayfası](https://github.com/diogotcorreia/Triton/wiki/Downloads) veya [JitPack](https://jitpack.io/#tritonmc/triton/) adresini inceleyin.
+
+## Kaynaktan Derleme
+
+Triton ücretli (premium) bir eklentidir ve kullanacaksanız Spigot veya Polymart üzerinden satın almanız önerilir. Yine de, kendi başınıza derlemek istiyorsanız derlemekte özgürsünüz. Kendi derlediğiniz sürümler için destek sağlanmamaktadır.
+
+Derlemek için bu depoyu klonlayın ve aşağıdaki komutu çalıştırın:
+
+```sh
+./gradlew shadowJar
+```
+
+## MiniMessage ve Güvenlik Özellikleri
+
+Triton, çevirilerde Kyori Adventure MiniMessage formatını yerel olarak destekler.
+
+### Özellikler
+- **Otomatik Algılama (Auto-Detection)**: Standart MiniMessage etiketlerini (örn. `<green>`, `<gradient:red:blue>`, hex renk kodları) içeren metinler otomatik olarak algılanır ve herhangi bir ön ek (prefix) gerekmeden MiniMessage olarak çözümlenir.
+- **Ön Ekler**: Çeviri değerlerinin başına MiniMessage için `[minimsg]` veya ham JSON bileşenleri için `[triton_json]` ekleyerek belirli formatları zorunlu kılabilirsiniz.
+- **Özel Triton Etiketi**: MiniMessage şablonlarında `<triton:key>` etiketini kullanarak başka bir çeviriyi mevcut şablonun içerisine gömebilirsiniz (renk paletleri veya ortak şablonlar için kullanışlıdır).
+
+### Güvenlik ve Güvenli Çeviriler (Safe Translations)
+Oyuncu girdilerinden (argümanlar) kaynaklanabilecek click action (komut yürütme) enjeksiyonlarını ve yapısal suistimalleri önlemek için:
+- **Tıklama Eylemi Temizleme (Click Event Stripping)**: `config.yml` dosyasında `safe-translations` aktif olduğunda, çevirilerin içerisindeki dinamik oyuncu argümanlarından tüm tıklama eylemleri tamamen temizlenir. Eğer orijinal çeviri şablonunda herhangi bir tıklama eylemi tanımlanmadıysa, güvenlik amacıyla nihai mesajdaki tüm tıklama eylemleri temizlenir.
+- **Sınırlayıcı Temizliği (Delimiter Sanitization)**: Stil ve olayları iç içe çözümlerken kullanılan Triton eklentisine ait dahili sınırlayıcı karakterler (`\uE400` - `\uE802`), enjeksiyon saldırılarını önlemek amacıyla argümanlardan tamamen filtrelenir.
