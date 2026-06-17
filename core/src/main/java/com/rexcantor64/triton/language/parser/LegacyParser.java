@@ -117,7 +117,25 @@ public class LegacyParser extends MessageParser {
                 Triton.get().getConfig().getDisabledLine(),
                 (key, arguments) -> Triton.get().getTranslationManager().getTextString(language, key)
                         .map(text -> this.handleTranslationType(text, language))
-                        .map(comp -> replaceArguments(comp, arguments))
+                        .map(comp -> {
+                            boolean hadClick = false;
+                            boolean safeMode = Triton.get().getConfig().isSafeTranslations();
+                            if (safeMode) {
+                                hadClick = !comp.getClickEvents().isEmpty();
+                            }
+                            SerializedComponent[] processedArguments = arguments;
+                            if (safeMode && arguments != null) {
+                                processedArguments = new SerializedComponent[arguments.length];
+                                for (int i = 0; i < arguments.length; i++) {
+                                    processedArguments[i] = stripRunCommandClickEvents(arguments[i]);
+                                }
+                            }
+                            SerializedComponent finalComp = replaceArguments(comp, processedArguments);
+                            if (safeMode && !hadClick) {
+                                finalComp.getClickEvents().clear();
+                            }
+                            return finalComp;
+                        })
                         .orElseGet(() -> {
                             val notFoundComponent = new SerializedComponent(Triton.get().getTranslationManager().getTranslationNotFoundComponent());
                             val argsConcatenation = Arrays.stream(arguments).map(SerializedComponent::getText).collect(Collectors.joining(", "));
@@ -360,8 +378,36 @@ public class LegacyParser extends MessageParser {
         } else if (message.startsWith(JSON_TYPE_TAG)) {
             return new SerializedComponent(GsonComponentSerializer.gson().deserialize(message.substring(JSON_TYPE_TAG.length())));
         } else {
+            if (Triton.get().getConfig().getDefaultTranslationType().equalsIgnoreCase("minimessage") ||
+                Triton.get().getConfig().getDefaultTranslationType().equalsIgnoreCase("mini-message") ||
+                Triton.get().getConfig().getDefaultTranslationType().equalsIgnoreCase("minimsg") ||
+                com.rexcantor64.triton.language.TranslationManager.MINIMESSAGE_DETECTION_PATTERN.matcher(message).find()) {
+                MiniMessage miniMessage = Triton.get().getTranslationManager().getMiniMessageInstanceForLanguage(language.getLanguage());
+                return new SerializedComponent(miniMessage.deserialize(message));
+            }
             return new SerializedComponent(ComponentUtils.translateAlternateColorCodes(message));
         }
+    }
+
+    private @NotNull SerializedComponent stripRunCommandClickEvents(@NotNull SerializedComponent comp) {
+        if (comp == null) return null;
+        comp.getClickEvents().entrySet().removeIf(entry -> entry.getValue() != null && entry.getValue().action() == ClickEvent.Action.RUN_COMMAND);
+        for (java.util.Map.Entry<UUID, TranslatableComponent> entry : comp.getTranslatableComponents().entrySet()) {
+            if (entry.getValue() != null) {
+                entry.setValue((TranslatableComponent) com.rexcantor64.triton.utils.ComponentUtils.stripRunCommandClickEvents(entry.getValue()));
+            }
+        }
+        for (java.util.Map.Entry<UUID, HoverEvent<?>> entry : comp.getHoverEvents().entrySet()) {
+            HoverEvent<?> hover = entry.getValue();
+            if (hover != null && hover.action() == HoverEvent.Action.SHOW_TEXT) {
+                Component value = (Component) hover.value();
+                Component strippedValue = com.rexcantor64.triton.utils.ComponentUtils.stripRunCommandClickEvents(value);
+                if (strippedValue != value) {
+                    entry.setValue(((HoverEvent<Component>) hover).value(strippedValue));
+                }
+            }
+        }
+        return comp;
     }
 
     /**

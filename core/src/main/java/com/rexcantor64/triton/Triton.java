@@ -206,6 +206,9 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
 
     public Configuration loadYAML(String fileName, String internalFileName) {
         File f = FileUtils.getResource(fileName + ".yml", internalFileName + ".yml");
+        if (fileName.equals("config")) {
+            checkAndAppendConfigProperties(f);
+        }
         try {
             val stream = new InputStreamReader(Files.newInputStream(f.toPath()), StandardCharsets.UTF_8);
             return ConfigurationProvider.getProvider(YamlConfiguration.class).load(stream);
@@ -214,6 +217,58 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
             logger.logError("You'll likely receive more errors on console until the next restart.");
         }
         return null;
+    }
+
+    private void checkAndAppendConfigProperties(File configFile) {
+        try {
+            if (!configFile.exists()) return;
+            List<String> lines = Files.readAllLines(configFile.toPath(), StandardCharsets.UTF_8);
+            boolean hasDefaultType = false;
+            boolean hasSafeTranslations = false;
+            int insertIndex = -1;
+            
+            for (int i = 0; i < lines.size(); i++) {
+                String line = lines.get(i).trim();
+                if (line.startsWith("default-translation-type:")) {
+                    hasDefaultType = true;
+                }
+                if (line.startsWith("safe-translations:")) {
+                    hasSafeTranslations = true;
+                }
+                if (line.startsWith("message-parser:")) {
+                    insertIndex = i;
+                }
+            }
+            
+            if (!hasDefaultType || !hasSafeTranslations) {
+                List<String> newLines = new ArrayList<>(lines);
+                int targetIndex = insertIndex != -1 ? insertIndex + 1 : newLines.size();
+                List<String> linesToAdd = new ArrayList<>();
+                
+                if (!hasDefaultType) {
+                    linesToAdd.add("");
+                    linesToAdd.add("# The default translation type/format to use when no prefix like [minimsg] or [triton_json] is specified.");
+                    linesToAdd.add("# Available values:");
+                    linesToAdd.add("# - legacy (standard Minecraft formatting codes like & and §)");
+                    linesToAdd.add("# - minimessage (Kyori Adventure MiniMessage formatting)");
+                    linesToAdd.add("default-translation-type: \"legacy\"");
+                }
+                
+                if (!hasSafeTranslations) {
+                    linesToAdd.add("");
+                    linesToAdd.add("# A security feature that prevents click action (command execution) injection from untrusted arguments.");
+                    linesToAdd.add("# If enabled, Triton will strip click actions from the final translated message if the original");
+                    linesToAdd.add("# translation template did not contain any click actions.");
+                    linesToAdd.add("safe-translations: true");
+                }
+                
+                newLines.addAll(targetIndex, linesToAdd);
+                Files.write(configFile.toPath(), newLines, StandardCharsets.UTF_8);
+                logger.logInfo("Successfully appended missing MiniMessage configuration options to config.yml!");
+            }
+        } catch (Exception e) {
+            logger.logError(e, "Failed to update config.yml with missing options.");
+        }
     }
 
     public abstract String getVersion();

@@ -194,4 +194,43 @@ public class ComponentUtilsTest {
         assertEquals(result.compact(), expected.compact());
     }
 
+    @Test
+    public void testClickEventSafetyUtilities() {
+        Component normal = Component.text("Hello world");
+        assertFalse(ComponentUtils.hasClickEvents(normal));
+
+        Component withClick = Component.text("Click me")
+                .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/say hello"));
+        assertTrue(ComponentUtils.hasClickEvents(withClick));
+
+        Component nestedWithClick = Component.text("Hello ")
+                .append(Component.text("world").clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/say nested")));
+        assertTrue(ComponentUtils.hasClickEvents(nestedWithClick));
+
+        Component hoverWithClick = Component.text("Hover me")
+                .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(Component.text("Inside hover").clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/say hover"))));
+        assertTrue(ComponentUtils.hasClickEvents(hoverWithClick));
+
+        Component strippedClick = ComponentUtils.stripClickEvents(withClick);
+        assertFalse(ComponentUtils.hasClickEvents(strippedClick));
+
+        Component strippedNested = ComponentUtils.stripClickEvents(nestedWithClick);
+        assertFalse(ComponentUtils.hasClickEvents(strippedNested));
+
+        Component strippedHover = ComponentUtils.stripClickEvents(hoverWithClick);
+        assertFalse(ComponentUtils.hasClickEvents(strippedHover));
+
+        Component mixed = Component.text("Text ")
+                .clickEvent(net.kyori.adventure.text.event.ClickEvent.suggestCommand("/msg player"))
+                .append(Component.text("hacker").clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/op hacker")));
+
+        Component strippedMixed = ComponentUtils.stripRunCommandClickEvents(mixed);
+        assertTrue(ComponentUtils.hasClickEvents(strippedMixed));
+        org.junit.jupiter.api.Assertions.assertNotNull(strippedMixed.clickEvent());
+        assertEquals(net.kyori.adventure.text.event.ClickEvent.Action.SUGGEST_COMMAND, strippedMixed.clickEvent().action());
+        org.junit.jupiter.api.Assertions.assertNull(strippedMixed.children().get(0).clickEvent());
+    }
+
 }
+
+

@@ -347,4 +347,17 @@ public interface TritonConfig {
      */
     FeatureSyntax getDeathScreenSyntax();
 
+    /**
+     * @return The default translation format/type when no prefix is specified.
+     * @since 4.1.0
+     */
+    String getDefaultTranslationType();
+
+    /**
+     * @return Whether to prevent click event injection from arguments.
+     * @since 4.1.0
+     */
+    boolean isSafeTranslations();
+
 }
+

@@ -102,8 +102,11 @@ public class MainConfig implements TritonConfig {
     private int maxPlaceholdersInMessage;
     private boolean asyncProtocolLib;
     private boolean usePacketEvents;
+    private String defaultTranslationType = "legacy";
+    private boolean safeTranslations = true;
 
     private String storageType = "local";
+
     private String serverName;
     @ToString.Exclude
     @GsonExclude
@@ -195,6 +198,8 @@ public class MainConfig implements TritonConfig {
         this.asyncProtocolLib = section.getBoolean("experimental-async-protocol-lib", false);
         this.usePacketEvents = section.getBoolean("experimental-use-packetevents", false);
         this.parser = section.getString("message-parser", "adventure");
+        this.defaultTranslationType = section.getString("default-translation-type", "legacy");
+        this.safeTranslations = section.getBoolean("safe-translations", true);
         Configuration languageCreation = section.getSection("language-creation");
         setupLanguageCreation(languageCreation);
 

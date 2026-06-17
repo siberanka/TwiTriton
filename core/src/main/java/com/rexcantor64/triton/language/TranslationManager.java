@@ -45,6 +45,9 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
 
     public static final String MINIMESSAGE_TYPE_TAG = "[minimsg]";
     public static final String JSON_TYPE_TAG = "[triton_json]";
+    public static final Pattern MINIMESSAGE_DETECTION_PATTERN = Pattern.compile(
+        "(?i)<(color|colour|gradient|hover|click|rainbow|transition|reset|bold|italic|underlined|strikethrough|obfuscated|newline|lang|key|selector|black|dark_blue|dark_green|dark_aqua|dark_red|dark_purple|gold|gray|dark_gray|blue|green|aqua|red|light_purple|yellow|white)[^>]*>|<#[0-9a-fA-F]{6}>|<#[0-9a-fA-F]{3}>"
+    );
 
     private final Triton<?, ?> triton;
 
@@ -245,7 +248,26 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
 
     @Override
     public @NotNull Optional<Component> getTextComponent(@NotNull Localized locale, @NotNull String key, Component... arguments) {
-        return getTextString(locale, key).map(string -> replaceArguments(handleTranslationType(string, locale.getLanguage()), arguments));
+        return getTextString(locale, key).map(string -> {
+            Component templateComponent = handleTranslationType(string, locale.getLanguage());
+            boolean safeMode = this.triton.getConfig().isSafeTranslations();
+            Component[] processedArguments = arguments;
+            if (safeMode && arguments != null) {
+                processedArguments = new Component[arguments.length];
+                for (int i = 0; i < arguments.length; i++) {
+                    processedArguments[i] = com.rexcantor64.triton.utils.ComponentUtils.stripRunCommandClickEvents(arguments[i]);
+                }
+            }
+            boolean hadClick = false;
+            if (safeMode) {
+                hadClick = com.rexcantor64.triton.utils.ComponentUtils.hasClickEvents(templateComponent);
+            }
+            Component finalComponent = replaceArguments(templateComponent, processedArguments);
+            if (safeMode && !hadClick) {
+                finalComponent = com.rexcantor64.triton.utils.ComponentUtils.stripClickEvents(finalComponent);
+            }
+            return finalComponent;
+        });
     }
 
     @Override
@@ -292,6 +314,12 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
         } else if (message.startsWith(JSON_TYPE_TAG)) {
             return GsonComponentSerializer.gson().deserialize(message.substring(JSON_TYPE_TAG.length()));
         } else {
+            if (this.triton.getConfig().getDefaultTranslationType().equalsIgnoreCase("minimessage") ||
+                this.triton.getConfig().getDefaultTranslationType().equalsIgnoreCase("mini-message") ||
+                this.triton.getConfig().getDefaultTranslationType().equalsIgnoreCase("minimsg") ||
+                MINIMESSAGE_DETECTION_PATTERN.matcher(message).find()) {
+                return getMiniMessageInstanceForLanguage(language).deserialize(message);
+            }
             return this.legacyComponentSerializer.deserialize(message);
         }
     }

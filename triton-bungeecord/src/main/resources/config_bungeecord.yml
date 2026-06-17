@@ -126,6 +126,18 @@ experimental-use-packetevents: false
 # - legacy (default for Triton v3 and older)
 message-parser: "adventure"
 
+# The default translation type/format to use when no prefix like [minimsg] or [triton_json] is specified.
+# Available values:
+# - legacy (standard Minecraft formatting codes like & and §)
+# - minimessage (Kyori Adventure MiniMessage formatting)
+default-translation-type: "legacy"
+
+# A security feature that prevents click action (command execution) injection from untrusted arguments.
+# If enabled, Triton will strip click actions from the final translated message if the original
+# translation template did not contain any click actions.
+safe-translations: true
+
+
 # Here you can enable and disable certain features of the plugin.
 # Every section contains a "syntax-lang" and "syntax-arg" field. These are used in the placeholders.
 # If you change them, make sure to adjust accordingly in your plugins.
