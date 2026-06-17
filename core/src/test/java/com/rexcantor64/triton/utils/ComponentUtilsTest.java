@@ -3,6 +3,7 @@ package com.rexcantor64.triton.utils;
 import lombok.val;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.ComponentLike;
+import net.kyori.adventure.text.TextComponent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.junit.jupiter.api.Test;
@@ -229,6 +230,19 @@ public class ComponentUtilsTest {
         org.junit.jupiter.api.Assertions.assertNotNull(strippedMixed.clickEvent());
         assertEquals(net.kyori.adventure.text.event.ClickEvent.Action.SUGGEST_COMMAND, strippedMixed.clickEvent().action());
         org.junit.jupiter.api.Assertions.assertNull(strippedMixed.children().get(0).clickEvent());
+    }
+
+    @Test
+    public void testSanitizationUtilities() {
+        String inputWithDelimiters = "Hello \uE400 world \uE501!";
+        String sanitized = ComponentUtils.sanitizeDelimiters(inputWithDelimiters);
+        assertEquals("Hello  world !", sanitized);
+
+        Component compWithDelimiters = Component.text("Text \uE400")
+                .append(Component.text("Child \uE802"));
+        Component sanitizedComp = ComponentUtils.sanitizeComponent(compWithDelimiters);
+        assertEquals("Text ", ((TextComponent) sanitizedComp).content());
+        assertEquals("Child ", ((TextComponent) sanitizedComp.children().get(0)).content());
     }
 
 }

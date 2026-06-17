@@ -378,6 +378,68 @@ public class ComponentUtils {
         return result;
     }
 
+    public static String sanitizeDelimiters(String text) {
+        if (text == null) return null;
+        return text.replace("\uE400", "")
+                   .replace("\uE401", "")
+                   .replace("\uE500", "")
+                   .replace("\uE501", "")
+                   .replace("\uE600", "")
+                   .replace("\uE700", "")
+                   .replace("\uE800", "")
+                   .replace("\uE801", "")
+                   .replace("\uE802", "");
+    }
+
+    public static Component sanitizeComponent(Component component) {
+        if (component == null) return null;
+        Component result = component;
+        if (component instanceof TextComponent) {
+            TextComponent tc = (TextComponent) component;
+            String content = tc.content();
+            String sanitized = sanitizeDelimiters(content);
+            if (!content.equals(sanitized)) {
+                result = tc.content(sanitized);
+            }
+        }
+        if (!result.children().isEmpty()) {
+            List<Component> sanitizedChildren = new ArrayList<>(result.children().size());
+            for (Component child : result.children()) {
+                sanitizedChildren.add(sanitizeComponent(child));
+            }
+            result = result.children(sanitizedChildren);
+        }
+        if (result instanceof net.kyori.adventure.text.TranslatableComponent) {
+            net.kyori.adventure.text.TranslatableComponent tc = (net.kyori.adventure.text.TranslatableComponent) result;
+            List<net.kyori.adventure.text.TranslationArgument> args = tc.arguments();
+            boolean changed = false;
+            List<net.kyori.adventure.text.TranslationArgument> sanitizedArgs = new ArrayList<>(args.size());
+            for (net.kyori.adventure.text.TranslationArgument arg : args) {
+                if (arg.value() instanceof Component) {
+                    Component sanitizedArg = sanitizeComponent((Component) arg.value());
+                    if (sanitizedArg != arg.value()) {
+                        changed = true;
+                    }
+                    sanitizedArgs.add(net.kyori.adventure.text.TranslationArgument.component(sanitizedArg));
+                } else {
+                    sanitizedArgs.add(arg);
+                }
+            }
+            if (changed) {
+                result = tc.arguments(sanitizedArgs);
+            }
+        }
+        net.kyori.adventure.text.event.HoverEvent<?> hoverEvent = result.hoverEvent();
+        if (hoverEvent != null && hoverEvent.action() == net.kyori.adventure.text.event.HoverEvent.Action.SHOW_TEXT) {
+            Component value = (Component) hoverEvent.value();
+            Component sanitizedValue = sanitizeComponent(value);
+            if (sanitizedValue != value) {
+                result = result.hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(sanitizedValue));
+            }
+        }
+        return result;
+    }
+
 }
 
 

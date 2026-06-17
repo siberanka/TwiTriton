@@ -123,13 +123,13 @@ public class LegacyParser extends MessageParser {
                             if (safeMode) {
                                 hadClick = !comp.getClickEvents().isEmpty();
                             }
-                            SerializedComponent[] processedArguments = arguments;
-                            if (safeMode && arguments != null) {
-                                processedArguments = new SerializedComponent[arguments.length];
-                                for (int i = 0; i < arguments.length; i++) {
-                                    processedArguments[i] = stripRunCommandClickEvents(arguments[i]);
-                                }
-                            }
+                             SerializedComponent[] processedArguments = arguments;
+                             if (safeMode && arguments != null) {
+                                 processedArguments = new SerializedComponent[arguments.length];
+                                 for (int i = 0; i < arguments.length; i++) {
+                                     processedArguments[i] = sanitizeSerializedComponent(stripClickEvents(arguments[i]));
+                                 }
+                             }
                             SerializedComponent finalComp = replaceArguments(comp, processedArguments);
                             if (safeMode && !hadClick) {
                                 finalComp.getClickEvents().clear();
@@ -389,21 +389,44 @@ public class LegacyParser extends MessageParser {
         }
     }
 
-    private @NotNull SerializedComponent stripRunCommandClickEvents(@NotNull SerializedComponent comp) {
+    private @NotNull SerializedComponent stripClickEvents(@NotNull SerializedComponent comp) {
         if (comp == null) return null;
-        comp.getClickEvents().entrySet().removeIf(entry -> entry.getValue() != null && entry.getValue().action() == ClickEvent.Action.RUN_COMMAND);
+        comp.getClickEvents().clear();
         for (java.util.Map.Entry<UUID, TranslatableComponent> entry : comp.getTranslatableComponents().entrySet()) {
             if (entry.getValue() != null) {
-                entry.setValue((TranslatableComponent) com.rexcantor64.triton.utils.ComponentUtils.stripRunCommandClickEvents(entry.getValue()));
+                entry.setValue((TranslatableComponent) com.rexcantor64.triton.utils.ComponentUtils.stripClickEvents(entry.getValue()));
             }
         }
         for (java.util.Map.Entry<UUID, HoverEvent<?>> entry : comp.getHoverEvents().entrySet()) {
             HoverEvent<?> hover = entry.getValue();
             if (hover != null && hover.action() == HoverEvent.Action.SHOW_TEXT) {
                 Component value = (Component) hover.value();
-                Component strippedValue = com.rexcantor64.triton.utils.ComponentUtils.stripRunCommandClickEvents(value);
+                Component strippedValue = com.rexcantor64.triton.utils.ComponentUtils.stripClickEvents(value);
                 if (strippedValue != value) {
                     entry.setValue(((HoverEvent<Component>) hover).value(strippedValue));
+                }
+            }
+        }
+        return comp;
+    }
+
+    private @NotNull SerializedComponent sanitizeSerializedComponent(@NotNull SerializedComponent comp) {
+        if (comp == null) return null;
+        if (comp.getText() != null) {
+            comp.setText(com.rexcantor64.triton.utils.ComponentUtils.sanitizeDelimiters(comp.getText()));
+        }
+        for (java.util.Map.Entry<UUID, TranslatableComponent> entry : comp.getTranslatableComponents().entrySet()) {
+            if (entry.getValue() != null) {
+                entry.setValue((TranslatableComponent) com.rexcantor64.triton.utils.ComponentUtils.sanitizeComponent(entry.getValue()));
+            }
+        }
+        for (java.util.Map.Entry<UUID, HoverEvent<?>> entry : comp.getHoverEvents().entrySet()) {
+            HoverEvent<?> hover = entry.getValue();
+            if (hover != null && hover.action() == HoverEvent.Action.SHOW_TEXT) {
+                Component value = (Component) hover.value();
+                Component sanitizedValue = com.rexcantor64.triton.utils.ComponentUtils.sanitizeComponent(value);
+                if (sanitizedValue != value) {
+                    entry.setValue(((HoverEvent<Component>) hover).value(sanitizedValue));
                 }
             }
         }

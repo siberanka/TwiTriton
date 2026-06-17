@@ -255,7 +255,9 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
             if (safeMode && arguments != null) {
                 processedArguments = new Component[arguments.length];
                 for (int i = 0; i < arguments.length; i++) {
-                    processedArguments[i] = com.rexcantor64.triton.utils.ComponentUtils.stripRunCommandClickEvents(arguments[i]);
+                    processedArguments[i] = com.rexcantor64.triton.utils.ComponentUtils.sanitizeComponent(
+                            com.rexcantor64.triton.utils.ComponentUtils.stripClickEvents(arguments[i])
+                    );
                 }
             }
             boolean hadClick = false;
