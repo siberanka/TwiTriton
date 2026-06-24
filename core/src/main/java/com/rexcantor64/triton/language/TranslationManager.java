@@ -46,7 +46,7 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
     public static final String MINIMESSAGE_TYPE_TAG = "[minimsg]";
     public static final String JSON_TYPE_TAG = "[triton_json]";
     public static final Pattern MINIMESSAGE_DETECTION_PATTERN = Pattern.compile(
-        "(?i)<(color|colour|gradient|hover|click|rainbow|transition|reset|bold|italic|underlined|strikethrough|obfuscated|newline|lang|key|selector|black|dark_blue|dark_green|dark_aqua|dark_red|dark_purple|gold|gray|dark_gray|blue|green|aqua|red|light_purple|yellow|white)[^>]*>|<#[0-9a-fA-F]{6}>|<#[0-9a-fA-F]{3}>"
+        "(?i)<(color|colour|gradient|hover|click|rainbow|transition|reset|bold|italic|underlined|strikethrough|obfuscated|newline|lang|key|selector|black|dark_blue|dark_green|dark_aqua|dark_red|dark_purple|gold|gray|dark_gray|blue|green|aqua|red|light_purple|yellow|white|b|i|u|st|obf|c|r|shadow|sprite|font)[^>]*>|<#[0-9a-fA-F]{6}[^>]*>|<#[0-9a-fA-F]{3}[^>]*>"
     );
 
     private final Triton<?, ?> triton;
