@@ -80,7 +80,8 @@ public class AdventureParser extends MessageParser {
                 syntax,
                 Triton.get().getConfig().getDisabledLine(),
                 // TODO properly integrate this
-                (key, arguments) -> Triton.get().getTranslationManager().getTextComponentOr404(language, key, arguments),
+                (key, arguments) -> ((com.rexcantor64.triton.language.TranslationManager) Triton.get().getTranslationManager())
+                        .getTextComponentOr404(language, key, syntax, arguments),
                 Function.identity()
         );
 

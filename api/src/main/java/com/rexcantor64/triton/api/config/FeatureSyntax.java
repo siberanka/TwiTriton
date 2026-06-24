@@ -36,4 +36,43 @@ public interface FeatureSyntax {
      * @since 1.0.0
      */
     String getArg();
+
+    /**
+     * Whether safe-translations should be enforced on translations matching this syntax.
+     * If true, Triton will strip click events from arguments and the final component if safe-translations is enabled in config.
+     * If false, safe-translations will be skipped.
+     *
+     * @return Whether safe-translations should be enforced
+     */
+    default boolean isSafeTranslations() {
+        return true;
+    }
+
+    /**
+     * Creates a new FeatureSyntax that wraps an existing one but overrides isSafeTranslations to return the specified value.
+     */
+    static FeatureSyntax withSafeTranslations(FeatureSyntax parent, boolean safe) {
+        return new FeatureSyntax() {
+            @Override
+            public String getLang() {
+                return parent.getLang();
+            }
+
+            @Override
+            public String getArgs() {
+                return parent.getArgs();
+            }
+
+            @Override
+            public String getArg() {
+                return parent.getArg();
+            }
+
+            @Override
+            public boolean isSafeTranslations() {
+                return safe;
+            }
+        };
+    }
 }
+

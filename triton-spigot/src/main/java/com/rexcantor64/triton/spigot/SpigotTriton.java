@@ -193,6 +193,10 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
         SpigotLanguagePlayer languagePlayer = (SpigotLanguagePlayer) genericLanguagePlayer;
 
         languagePlayer.toBukkit().ifPresent(player -> {
+            if (com.rexcantor64.triton.bridge.BedrockBridge.openLanguageSelectionForm(player.getUniqueId())) {
+                return;
+            }
+
             val commandOverride = getConfig().getOpenSelectorCommandOverride();
             if (commandOverride != null && !commandOverride.isEmpty()) {
                 player.performCommand(commandOverride);

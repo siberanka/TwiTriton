@@ -16,6 +16,10 @@ public class OpenSelectorCommand extends com.rexcantor64.triton.commands.OpenSel
         val sender = event.getSender();
         val uuid = sender.getUUID();
 
+        if (uuid != null && com.rexcantor64.triton.bridge.BedrockBridge.isBedrockPlayer(uuid)) {
+            return;
+        }
+
         sender.assertPermission("triton.openselector");
 
         SpigotTriton.asSpigot().openLanguagesSelectionGUI(Triton.get().getPlayerManager().get(uuid));

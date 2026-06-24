@@ -288,7 +288,10 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
                 .translateComponent(
                         message,
                         languagePlayer,
-                        ab ? main.getConfig().getActionbarSyntax() : main.getConfig().getChatSyntax()
+                        com.rexcantor64.triton.api.config.FeatureSyntax.withSafeTranslations(
+                                ab ? main.getConfig().getActionbarSyntax() : main.getConfig().getChatSyntax(),
+                                isSafeChat(packet.getPacket())
+                        )
                 )
                 .ifChanged(result -> {
                     if (adventureModifier.size() > 0) {
@@ -358,7 +361,10 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
                 .translateComponent(
                         message,
                         languagePlayer,
-                        ab ? main.getConfig().getActionbarSyntax() : main.getConfig().getChatSyntax()
+                        com.rexcantor64.triton.api.config.FeatureSyntax.withSafeTranslations(
+                                ab ? main.getConfig().getActionbarSyntax() : main.getConfig().getChatSyntax(),
+                                false
+                        )
                 )
                 .ifChanged(result -> {
                     if (adventureModifier.size() > 0) {
@@ -1073,6 +1079,20 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
             return container.getChatTypes().readSafely(0) == EnumWrappers.ChatType.GAME_INFO;
         } else {
             return container.getBytes().readSafely(0) == 2;
+        }
+    }
+
+    private boolean isSafeChat(PacketContainer container) {
+        if (MinecraftVersion.WILD_UPDATE.atOrAbove()) {
+            return true;
+        }
+        if (isActionbar(container)) {
+            return false;
+        }
+        if (MinecraftVersion.COLOR_UPDATE.atOrAbove()) {
+            return container.getChatTypes().readSafely(0) == EnumWrappers.ChatType.CHAT;
+        } else {
+            return container.getBytes().readSafely(0) == 0;
         }
     }
 

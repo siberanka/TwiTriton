@@ -65,6 +65,7 @@ other:
   selector-gui-forward: "<aqua>Next"
   selector-gui-currentpage: "<aqua>Page <dark_aqua>%1</dark_aqua> of <dark_aqua>%2</dark_aqua>"
   selected: "<aqua>Currently selected"
+  currently-selected: "Currently selected"
   database-loading: "<aqua>Performing operation..."
 debug:
   prefix: "<aqua>[Triton @ <bold>%1</bold>] <reset>%2"

@@ -105,6 +105,13 @@ To prevent click-action (command execution) injection or structure exploits from
 - **Click Event Stripping**: When `safe-translations` is enabled in `config.yml`, click actions are completely stripped from translation arguments. If the original translation template doesn't define click events, all click events will also be stripped from the final formatted message.
 - **Delimiter Sanitization**: Internal parser delimiter characters (used to demarcate styles/events recursively) are scrubbed from arguments to prevent delimiter-injection attacks.
 
+### Bedrock Edition & Geyser/Floodgate Translation Bridge
+
+Triton includes native support for translating custom player GUI forms sent to Bedrock Edition players connecting via Geyser or Floodgate.
+- **Interception**: Geyser and Floodgate custom GUI Forms (e.g., SimpleForm, CustomForm, ModalForm) bypass standard Java Edition packet interception. Triton hooks into `GeyserApi` and `FloodgateApi` dynamically using dynamic reflection proxies to intercept outgoing forms.
+- **Recursive Translation**: Triton automatically traverses the form object graph recursively, translating all string elements (such as form titles, description texts, input placeholders, buttons, and options lists) matching Triton's translation formats (like `[lang]key[/lang]`) into the player's selected language.
+- **Automatic Integration**: No extra configuration is required. The bridge is activated automatically if Geyser or Floodgate is detected on the server.
+
 ---
 
 # Triton (Türkçe)
@@ -193,3 +200,10 @@ Triton, çevirilerde Kyori Adventure MiniMessage formatını yerel olarak destek
 Oyuncu girdilerinden (argümanlar) kaynaklanabilecek click action (komut yürütme) enjeksiyonlarını ve yapısal suistimalleri önlemek için:
 - **Tıklama Eylemi Temizleme (Click Event Stripping)**: `config.yml` dosyasında `safe-translations` aktif olduğunda, çevirilerin içerisindeki dinamik oyuncu argümanlarından tüm tıklama eylemleri tamamen temizlenir. Eğer orijinal çeviri şablonunda herhangi bir tıklama eylemi tanımlanmadıysa, güvenlik amacıyla nihai mesajdaki tüm tıklama eylemleri temizlenir.
 - **Sınırlayıcı Temizliği (Delimiter Sanitization)**: Stil ve olayları iç içe çözümlerken kullanılan Triton eklentisine ait dahili sınırlayıcı karakterler (`\uE400` - `\uE802`), enjeksiyon saldırılarını önlemek amacıyla argümanlardan tamamen filtrelenir.
+
+### Bedrock Edition ve Geyser/Floodgate Çeviri Köprüsü
+
+Triton, Geyser veya Floodgate aracılığıyla bağlanan Bedrock Edition oyuncularına gönderilen özel arayüz formlarının çevrilmesini yerel olarak destekler.
+- **Form Yakalama (Interception)**: Geyser ve Floodgate'in özel GUI Formları (SimpleForm, CustomForm, ModalForm), standart Java Edition paket yakalama işlemlerini bypass eder. Triton, form gönderimlerini anlık olarak yakalamak için `GeyserApi` ve `FloodgateApi` sınıflarına çalışma zamanında (runtime) yansıma (reflection) tabanlı dinamik proxyler enjekte eder.
+- **Rekürsif Çeviri**: Form başlıkları, içerik yazıları, buton isimleri, girdi alanları (input placeholders) ve açılır menü seçenekleri gibi tüm metin öğeleri otomatik olarak taranır ve oyuncunun seçtiği dile göre Triton çeviri formatları (`[lang]anahtar[/lang]`) kullanılarak rekürsif (iç içe) olarak çevrilir.
+- **Otomatik Entegrasyon**: Herhangi bir ek ayar gerektirmez. Geyser veya Floodgate sunucuda algılandığında çeviri köprüsü otomatik olarak devreye girer.

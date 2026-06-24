@@ -48,7 +48,10 @@ public class ChatHandler {
                 parser().translateComponent(
                                 systemChatPacket.getComponent().getComponent(),
                                 player,
-                                actionBar ? getActionBarSyntax() : getChatSyntax()
+                                com.rexcantor64.triton.api.config.FeatureSyntax.withSafeTranslations(
+                                        actionBar ? getActionBarSyntax() : getChatSyntax(),
+                                        false
+                                )
                         )
                         .map(result -> new ComponentHolder(player.getProtocolVersion(), result))
                         .mapToObj(
@@ -70,7 +73,10 @@ public class ChatHandler {
                 parser().translateComponent(
                                 ComponentUtils.deserializeFromJson(legacyChatPacket.getMessage(), player.getProtocolVersion()),
                                 player,
-                                actionBar ? getActionBarSyntax() : getChatSyntax()
+                                com.rexcantor64.triton.api.config.FeatureSyntax.withSafeTranslations(
+                                        actionBar ? getActionBarSyntax() : getChatSyntax(),
+                                        legacyChatPacket.getType() == 0
+                                )
                         )
                         .map(result -> ComponentUtils.serializeToJson(result, player.getProtocolVersion(), actionBar))
                         .mapToObj(

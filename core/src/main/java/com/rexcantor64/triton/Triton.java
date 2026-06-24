@@ -147,6 +147,7 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
         if (this.packetEventsManager != null) {
             this.packetEventsManager.onEnable();
         }
+        com.rexcantor64.triton.bridge.BedrockBridge.init();
     }
 
     public void onDisable() {

@@ -246,11 +246,41 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
                 .orElseGet(() -> getTranslationNotFoundComponent(key, arguments));
     }
 
+    public @NotNull Component getTextComponentOr404(@NotNull Localized locale, @NotNull String key, com.rexcantor64.triton.api.config.FeatureSyntax syntax, Component... arguments) {
+        return getTextComponent(locale, key, syntax, arguments)
+                .orElseGet(() -> getTranslationNotFoundComponent(key, arguments));
+    }
+
     @Override
     public @NotNull Optional<Component> getTextComponent(@NotNull Localized locale, @NotNull String key, Component... arguments) {
         return getTextString(locale, key).map(string -> {
             Component templateComponent = handleTranslationType(string, locale.getLanguage());
             boolean safeMode = this.triton.getConfig().isSafeTranslations();
+            Component[] processedArguments = arguments;
+            if (safeMode && arguments != null) {
+                processedArguments = new Component[arguments.length];
+                for (int i = 0; i < arguments.length; i++) {
+                    processedArguments[i] = com.rexcantor64.triton.utils.ComponentUtils.sanitizeComponent(
+                            com.rexcantor64.triton.utils.ComponentUtils.stripClickEvents(arguments[i])
+                    );
+                }
+            }
+            boolean hadClick = false;
+            if (safeMode) {
+                hadClick = com.rexcantor64.triton.utils.ComponentUtils.hasClickEvents(templateComponent);
+            }
+            Component finalComponent = replaceArguments(templateComponent, processedArguments);
+            if (safeMode && !hadClick) {
+                finalComponent = com.rexcantor64.triton.utils.ComponentUtils.stripClickEvents(finalComponent);
+            }
+            return finalComponent;
+        });
+    }
+
+    public @NotNull Optional<Component> getTextComponent(@NotNull Localized locale, @NotNull String key, com.rexcantor64.triton.api.config.FeatureSyntax syntax, Component... arguments) {
+        return getTextString(locale, key).map(string -> {
+            Component templateComponent = handleTranslationType(string, locale.getLanguage());
+            boolean safeMode = this.triton.getConfig().isSafeTranslations() && syntax.isSafeTranslations();
             Component[] processedArguments = arguments;
             if (safeMode && arguments != null) {
                 processedArguments = new Component[arguments.length];

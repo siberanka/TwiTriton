@@ -119,7 +119,7 @@ public class LegacyParser extends MessageParser {
                         .map(text -> this.handleTranslationType(text, language))
                         .map(comp -> {
                             boolean hadClick = false;
-                            boolean safeMode = Triton.get().getConfig().isSafeTranslations();
+                            boolean safeMode = Triton.get().getConfig().isSafeTranslations() && syntax.isSafeTranslations();
                             if (safeMode) {
                                 hadClick = !comp.getClickEvents().isEmpty();
                             }

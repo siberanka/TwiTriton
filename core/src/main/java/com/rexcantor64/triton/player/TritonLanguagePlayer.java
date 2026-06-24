@@ -28,6 +28,10 @@ public abstract class TritonLanguagePlayer<P> implements LanguagePlayer {
 
     public abstract @NotNull Optional<P> getPlatformPlayer();
 
+    public abstract void sendSuccessMessage(com.rexcantor64.triton.api.language.Language lang);
+
+    public abstract void runSync(Runnable runnable);
+
     public void refreshAll() {
         if (packetEventsRefresh != null) {
             Triton.get().runAsync(() -> packetEventsRefresh.refreshAll());

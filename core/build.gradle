@@ -13,6 +13,10 @@ dependencies {
     compileOnly project(':core:triton-core-loader')
     compileOnly project(":api")
 
+    // Geyser and Floodgate APIs
+    compileOnly 'org.geysermc.geyser:api:2.2.0-SNAPSHOT'
+    compileOnly 'org.geysermc.floodgate:api:2.2.0-SNAPSHOT'
+
     // Adventure / MiniMessage
     compileOnly libs.adventure.serializer.gson
     compileOnly libs.adventure.serializer.legacy
@@ -39,6 +43,8 @@ dependencies {
 
     // Test dependencies
     testImplementation project(":api")
+    testImplementation 'org.geysermc.geyser:api:2.2.0-SNAPSHOT'
+    testImplementation 'org.geysermc.floodgate:api:2.2.0-SNAPSHOT'
 
     testImplementation libs.junit.jupiter
     testRuntimeOnly libs.junit.platform.launcher

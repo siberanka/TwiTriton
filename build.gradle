@@ -17,6 +17,10 @@ allprojects {
         mavenLocal()
         mavenCentral()
         maven {
+            name = 'opencollab'
+            url = 'https://repo.opencollab.dev/main/'
+        }
+        maven {
             name = 'diogotcRepositoryReleases'
             url = 'https://repo.diogotc.com/releases/'
         }
