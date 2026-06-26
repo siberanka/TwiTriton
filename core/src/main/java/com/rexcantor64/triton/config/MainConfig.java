@@ -61,8 +61,6 @@ public class MainConfig implements TritonConfig {
     private List<String> commandAliases;
     private String parser = "adventure";
     private String disabledLine;
-    private boolean pluginPlaceholders;
-    private List<String> pluginPlaceholderPrefixes = Lists.newArrayList("$", "&");
     private boolean chat;
     private boolean signedChat;
     private FeatureSyntax chatSyntax;
@@ -202,12 +200,6 @@ public class MainConfig implements TritonConfig {
         this.parser = section.getString("message-parser", "adventure");
         this.defaultTranslationType = section.getString("default-translation-type", "legacy");
         this.safeTranslations = section.getBoolean("safe-translations", true);
-        Configuration pluginPlaceholders = section.getSection("plugin-placeholders");
-        this.pluginPlaceholders = pluginPlaceholders.getBoolean("enabled", false);
-        this.pluginPlaceholderPrefixes = pluginPlaceholders.getStringList("alternate-prefixes");
-        if (this.pluginPlaceholderPrefixes == null || this.pluginPlaceholderPrefixes.isEmpty()) {
-            this.pluginPlaceholderPrefixes = Lists.newArrayList("$", "&");
-        }
         Configuration languageCreation = section.getSection("language-creation");
         setupLanguageCreation(languageCreation);
 

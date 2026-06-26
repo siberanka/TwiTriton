@@ -226,7 +226,6 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
             List<String> lines = Files.readAllLines(configFile.toPath(), StandardCharsets.UTF_8);
             boolean hasDefaultType = false;
             boolean hasSafeTranslations = false;
-            boolean hasPluginPlaceholders = false;
             int insertIndex = -1;
             
             for (int i = 0; i < lines.size(); i++) {
@@ -237,15 +236,12 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
                 if (line.startsWith("safe-translations:")) {
                     hasSafeTranslations = true;
                 }
-                if (line.startsWith("plugin-placeholders:")) {
-                    hasPluginPlaceholders = true;
-                }
                 if (line.startsWith("message-parser:")) {
                     insertIndex = i;
                 }
             }
             
-            if (!hasDefaultType || !hasSafeTranslations || !hasPluginPlaceholders) {
+            if (!hasDefaultType || !hasSafeTranslations) {
                 List<String> newLines = new ArrayList<>(lines);
                 int targetIndex = insertIndex != -1 ? insertIndex + 1 : newLines.size();
                 List<String> linesToAdd = new ArrayList<>();
@@ -266,22 +262,10 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
                     linesToAdd.add("# translation template did not contain any click actions.");
                     linesToAdd.add("safe-translations: true");
                 }
-
-                if (!hasPluginPlaceholders) {
-                    linesToAdd.add("");
-                    linesToAdd.add("# Preserve other plugins' internal placeholders while Triton parses translations.");
-                    linesToAdd.add("# This does not resolve PlaceholderAPI values; it only keeps tokens such as %placeholder%, {placeholder}, $placeholder and &placeholder intact.");
-                    linesToAdd.add("# Normal color codes such as &a are left untouched.");
-                    linesToAdd.add("plugin-placeholders:");
-                    linesToAdd.add("  enabled: false");
-                    linesToAdd.add("  alternate-prefixes:");
-                    linesToAdd.add("    - \"$\"");
-                    linesToAdd.add("    - \"&\"");
-                }
                 
                 newLines.addAll(targetIndex, linesToAdd);
                 Files.write(configFile.toPath(), newLines, StandardCharsets.UTF_8);
-                logger.logInfo("Successfully appended missing translation configuration options to config.yml!");
+                logger.logInfo("Successfully appended missing MiniMessage configuration options to config.yml!");
             }
         } catch (Exception e) {
             logger.logError(e, "Failed to update config.yml with missing options.");

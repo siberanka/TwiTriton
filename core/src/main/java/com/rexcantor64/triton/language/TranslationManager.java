@@ -9,7 +9,6 @@ import com.rexcantor64.triton.language.item.LanguageSign;
 import com.rexcantor64.triton.language.item.LanguageText;
 import com.rexcantor64.triton.storage.LocalStorage;
 import com.rexcantor64.triton.utils.ComponentUtils;
-import com.rexcantor64.triton.utils.PluginPlaceholderProtector;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -341,27 +340,20 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
     }
 
     private @NotNull Component handleTranslationType(@NotNull String message, @NotNull Language language) {
-        boolean protectPluginPlaceholders = this.triton.getConfig().isPluginPlaceholders();
-        if (protectPluginPlaceholders) {
-            message = PluginPlaceholderProtector.protect(message, this.triton.getConfig().getPluginPlaceholderPrefixes());
-        }
-        Component result;
         // TODO make minimsg the default (?)
         if (message.startsWith(MINIMESSAGE_TYPE_TAG)) {
-            result = getMiniMessageInstanceForLanguage(language).deserialize(message.substring(MINIMESSAGE_TYPE_TAG.length()));
+            return getMiniMessageInstanceForLanguage(language).deserialize(message.substring(MINIMESSAGE_TYPE_TAG.length()));
         } else if (message.startsWith(JSON_TYPE_TAG)) {
-            result = GsonComponentSerializer.gson().deserialize(message.substring(JSON_TYPE_TAG.length()));
+            return GsonComponentSerializer.gson().deserialize(message.substring(JSON_TYPE_TAG.length()));
         } else {
             if (this.triton.getConfig().getDefaultTranslationType().equalsIgnoreCase("minimessage") ||
                 this.triton.getConfig().getDefaultTranslationType().equalsIgnoreCase("mini-message") ||
                 this.triton.getConfig().getDefaultTranslationType().equalsIgnoreCase("minimsg") ||
                 MINIMESSAGE_DETECTION_PATTERN.matcher(message).find()) {
-                result = getMiniMessageInstanceForLanguage(language).deserialize(message);
-            } else {
-                result = this.legacyComponentSerializer.deserialize(message);
+                return getMiniMessageInstanceForLanguage(language).deserialize(message);
             }
+            return this.legacyComponentSerializer.deserialize(message);
         }
-        return protectPluginPlaceholders ? PluginPlaceholderProtector.restore(result) : result;
     }
 
     public @NotNull Optional<Component[]> getSignComponents(@NotNull Localized locale, @NotNull SignLocation location) {
@@ -377,7 +369,7 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
     public @NotNull Optional<Component[]> getSignComponents(@NotNull Localized locale,
                                                             @NotNull SignLocation location,
                                                             @NotNull Supplier<Component[]> defaultLinesSupplier) {
-        val lines = getSignComponentsForLanguage(locale, locale.getLanguage(), location, defaultLinesSupplier);
+        val lines = getSignComponentsForLanguage(locale.getLanguage(), location, defaultLinesSupplier);
         if (lines.isPresent()) {
             return lines;
         }
@@ -387,17 +379,16 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
             if (!fallbackLanguage.isPresent()) {
                 continue;
             }
-            val textFallback = getSignComponentsForLanguage(locale, fallbackLanguage.get(), location, defaultLinesSupplier);
+            val textFallback = getSignComponentsForLanguage(fallbackLanguage.get(), location, defaultLinesSupplier);
             if (textFallback.isPresent()) {
                 return textFallback;
             }
         }
 
-        return getSignComponentsForLanguage(locale, triton.getLanguageManager().getMainLanguage(), location, defaultLinesSupplier);
+        return getSignComponentsForLanguage(triton.getLanguageManager().getMainLanguage(), location, defaultLinesSupplier);
     }
 
-    private @NotNull Optional<Component[]> getSignComponentsForLanguage(@NotNull Localized locale,
-                                                                        @NotNull Language language,
+    private @NotNull Optional<Component[]> getSignComponentsForLanguage(@NotNull Language language,
                                                                         @NotNull SignLocation location,
                                                                         @NotNull Supplier<Component[]> defaultLinesSupplier) {
         this.triton.getLogger().logTrace("Trying to get sign translation on location '%1' in language '%2'", location, language.getLanguageId());
@@ -412,11 +403,10 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
         }
 
         this.triton.getLogger().logTrace("Found sign translation on location '%1' in language '%2'", location, language.getLanguageId());
-        return Optional.of(formatLines(locale, language, lines, defaultLinesSupplier));
+        return Optional.of(formatLines(language, lines, defaultLinesSupplier));
     }
 
-    public Component[] formatLines(@NonNull Localized locale,
-                                   @NonNull Language language,
+    public Component[] formatLines(@NonNull Language language,
                                    @NonNull String[] lines,
                                    @NonNull Supplier<@Nullable Component @NotNull []> defaultLinesSupplier) {
         val result = new Component[8];
@@ -464,15 +454,7 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
             try {
                 Matcher matcher = entry.getKey().matcher(input);
                 // patterns only support legacy formatting for now
-                if (this.triton.getConfig().isPluginPlaceholders()) {
-                    replacement = PluginPlaceholderProtector.protect(replacement, this.triton.getConfig().getPluginPlaceholderPrefixes());
-                }
-                replacement = ComponentUtils.translateAlternateColorCodes(replacement);
-                if (this.triton.getConfig().isPluginPlaceholders()) {
-                    input = PluginPlaceholderProtector.restore(matcher.replaceAll(replacement));
-                } else {
-                    input = matcher.replaceAll(replacement);
-                }
+                input = matcher.replaceAll(ComponentUtils.translateAlternateColorCodes(replacement));
             } catch (IndexOutOfBoundsException e) {
                 this.triton.getLogger().logError(
                         "Failed to translate using patterns: translation has more placeholders than regex groups. Translation key: %1",

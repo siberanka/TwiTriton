@@ -18,6 +18,7 @@ import com.rexcantor64.triton.spigot.listeners.BukkitListener;
 import com.rexcantor64.triton.spigot.packetinterceptor.ProtocolLibManager;
 import com.rexcantor64.triton.spigot.packetinterceptor.ProtocolLibRefresher;
 import com.rexcantor64.triton.spigot.packetinterceptor.SpigotPacketEventsManager;
+import com.rexcantor64.triton.spigot.placeholderapi.PapiProcessor;
 import com.rexcantor64.triton.spigot.placeholderapi.TritonPlaceholderHook;
 import com.rexcantor64.triton.spigot.player.SpigotLanguagePlayer;
 import com.rexcantor64.triton.spigot.plugin.SpigotPlugin;
@@ -162,7 +163,13 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
     @Override
     @Contract("_, _ -> _")
     public @NotNull String preprocessLegacyParserTranslation(@NotNull String translation, @NotNull Localized language) {
-        return translation;
+        if (!isPapiEnabled() || !(language instanceof SpigotLanguagePlayer)) {
+            return translation;
+        }
+        SpigotLanguagePlayer slp = (SpigotLanguagePlayer) language;
+        return slp.toBukkit()
+                .map(player -> PapiProcessor.replacePlaceholders(translation, player))
+                .orElse(translation);
     }
 
     @Override

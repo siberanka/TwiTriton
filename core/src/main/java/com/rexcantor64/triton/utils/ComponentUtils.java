@@ -23,7 +23,6 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
-import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -436,63 +435,6 @@ public class ComponentUtils {
             Component sanitizedValue = sanitizeComponent(value);
             if (sanitizedValue != value) {
                 result = result.hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(sanitizedValue));
-            }
-        }
-        return result;
-    }
-
-    public static Component transformTextContent(Component component, Function<String, String> transformer) {
-        if (component == null) return null;
-        Component result = component;
-        if (component instanceof TextComponent) {
-            TextComponent tc = (TextComponent) component;
-            String content = tc.content();
-            String transformed = transformer.apply(content);
-            if (!content.equals(transformed)) {
-                result = tc.content(transformed);
-            }
-        }
-        if (!result.children().isEmpty()) {
-            List<Component> transformedChildren = new ArrayList<>(result.children().size());
-            for (Component child : result.children()) {
-                transformedChildren.add(transformTextContent(child, transformer));
-            }
-            result = result.children(transformedChildren);
-        }
-        if (result instanceof net.kyori.adventure.text.TranslatableComponent) {
-            net.kyori.adventure.text.TranslatableComponent tc = (net.kyori.adventure.text.TranslatableComponent) result;
-            List<net.kyori.adventure.text.TranslationArgument> args = tc.arguments();
-            boolean changed = false;
-            List<net.kyori.adventure.text.TranslationArgument> transformedArgs = new ArrayList<>(args.size());
-            for (net.kyori.adventure.text.TranslationArgument arg : args) {
-                if (arg.value() instanceof Component) {
-                    Component transformedArg = transformTextContent((Component) arg.value(), transformer);
-                    if (transformedArg != arg.value()) {
-                        changed = true;
-                    }
-                    transformedArgs.add(net.kyori.adventure.text.TranslationArgument.component(transformedArg));
-                } else {
-                    transformedArgs.add(arg);
-                }
-            }
-            if (changed) {
-                result = tc.arguments(transformedArgs);
-            }
-        }
-        net.kyori.adventure.text.event.HoverEvent<?> hoverEvent = result.hoverEvent();
-        if (hoverEvent != null && hoverEvent.action() == net.kyori.adventure.text.event.HoverEvent.Action.SHOW_TEXT) {
-            Component value = (Component) hoverEvent.value();
-            Component transformedValue = transformTextContent(value, transformer);
-            if (transformedValue != value) {
-                result = result.hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(transformedValue));
-            }
-        }
-        net.kyori.adventure.text.event.ClickEvent clickEvent = result.clickEvent();
-        if (clickEvent != null) {
-            String value = clickEvent.value();
-            String transformedValue = transformer.apply(value);
-            if (!value.equals(transformedValue)) {
-                result = result.clickEvent(net.kyori.adventure.text.event.ClickEvent.clickEvent(clickEvent.action(), transformedValue));
             }
         }
         return result;
