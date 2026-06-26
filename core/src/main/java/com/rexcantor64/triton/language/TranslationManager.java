@@ -9,6 +9,7 @@ import com.rexcantor64.triton.language.item.LanguageSign;
 import com.rexcantor64.triton.language.item.LanguageText;
 import com.rexcantor64.triton.storage.LocalStorage;
 import com.rexcantor64.triton.utils.ComponentUtils;
+import com.rexcantor64.triton.utils.PluginPlaceholderProtector;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
@@ -254,7 +255,6 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
     @Override
     public @NotNull Optional<Component> getTextComponent(@NotNull Localized locale, @NotNull String key, Component... arguments) {
         return getTextString(locale, key).map(string -> {
-            string = this.triton.resolvePluginPlaceholdersBeforeTranslation(string, locale);
             Component templateComponent = handleTranslationType(string, locale.getLanguage());
             boolean safeMode = this.triton.getConfig().isSafeTranslations();
             Component[] processedArguments = arguments;
@@ -274,13 +274,12 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
             if (safeMode && !hadClick) {
                 finalComponent = com.rexcantor64.triton.utils.ComponentUtils.stripClickEvents(finalComponent);
             }
-            return this.triton.resolvePluginPlaceholdersAfterTranslation(finalComponent, locale);
+            return finalComponent;
         });
     }
 
     public @NotNull Optional<Component> getTextComponent(@NotNull Localized locale, @NotNull String key, com.rexcantor64.triton.api.config.FeatureSyntax syntax, Component... arguments) {
         return getTextString(locale, key).map(string -> {
-            string = this.triton.resolvePluginPlaceholdersBeforeTranslation(string, locale);
             Component templateComponent = handleTranslationType(string, locale.getLanguage());
             boolean safeMode = this.triton.getConfig().isSafeTranslations() && syntax.isSafeTranslations();
             Component[] processedArguments = arguments;
@@ -300,7 +299,7 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
             if (safeMode && !hadClick) {
                 finalComponent = com.rexcantor64.triton.utils.ComponentUtils.stripClickEvents(finalComponent);
             }
-            return this.triton.resolvePluginPlaceholdersAfterTranslation(finalComponent, locale);
+            return finalComponent;
         });
     }
 
@@ -342,20 +341,27 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
     }
 
     private @NotNull Component handleTranslationType(@NotNull String message, @NotNull Language language) {
+        boolean protectPluginPlaceholders = this.triton.getConfig().isPluginPlaceholders();
+        if (protectPluginPlaceholders) {
+            message = PluginPlaceholderProtector.protect(message, this.triton.getConfig().getPluginPlaceholderPrefixes());
+        }
+        Component result;
         // TODO make minimsg the default (?)
         if (message.startsWith(MINIMESSAGE_TYPE_TAG)) {
-            return getMiniMessageInstanceForLanguage(language).deserialize(message.substring(MINIMESSAGE_TYPE_TAG.length()));
+            result = getMiniMessageInstanceForLanguage(language).deserialize(message.substring(MINIMESSAGE_TYPE_TAG.length()));
         } else if (message.startsWith(JSON_TYPE_TAG)) {
-            return GsonComponentSerializer.gson().deserialize(message.substring(JSON_TYPE_TAG.length()));
+            result = GsonComponentSerializer.gson().deserialize(message.substring(JSON_TYPE_TAG.length()));
         } else {
             if (this.triton.getConfig().getDefaultTranslationType().equalsIgnoreCase("minimessage") ||
                 this.triton.getConfig().getDefaultTranslationType().equalsIgnoreCase("mini-message") ||
                 this.triton.getConfig().getDefaultTranslationType().equalsIgnoreCase("minimsg") ||
                 MINIMESSAGE_DETECTION_PATTERN.matcher(message).find()) {
-                return getMiniMessageInstanceForLanguage(language).deserialize(message);
+                result = getMiniMessageInstanceForLanguage(language).deserialize(message);
+            } else {
+                result = this.legacyComponentSerializer.deserialize(message);
             }
-            return this.legacyComponentSerializer.deserialize(message);
         }
+        return protectPluginPlaceholders ? PluginPlaceholderProtector.restore(result) : result;
     }
 
     public @NotNull Optional<Component[]> getSignComponents(@NotNull Localized locale, @NotNull SignLocation location) {
@@ -422,8 +428,7 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
                 continue;
             }
             if (!lines[i].equals("%use_line_default%")) {
-                String line = this.triton.resolvePluginPlaceholdersBeforeTranslation(lines[i], locale);
-                result[i] = this.triton.resolvePluginPlaceholdersAfterTranslation(handleTranslationType(line, language), locale);
+                result[i] = handleTranslationType(lines[i], language);
                 continue;
             }
 
@@ -459,7 +464,15 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
             try {
                 Matcher matcher = entry.getKey().matcher(input);
                 // patterns only support legacy formatting for now
-                input = matcher.replaceAll(ComponentUtils.translateAlternateColorCodes(replacement));
+                if (this.triton.getConfig().isPluginPlaceholders()) {
+                    replacement = PluginPlaceholderProtector.protect(replacement, this.triton.getConfig().getPluginPlaceholderPrefixes());
+                }
+                replacement = ComponentUtils.translateAlternateColorCodes(replacement);
+                if (this.triton.getConfig().isPluginPlaceholders()) {
+                    input = PluginPlaceholderProtector.restore(matcher.replaceAll(replacement));
+                } else {
+                    input = matcher.replaceAll(replacement);
+                }
             } catch (IndexOutOfBoundsException e) {
                 this.triton.getLogger().logError(
                         "Failed to translate using patterns: translation has more placeholders than regex groups. Translation key: %1",

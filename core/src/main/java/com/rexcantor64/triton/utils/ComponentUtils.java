@@ -487,6 +487,14 @@ public class ComponentUtils {
                 result = result.hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(transformedValue));
             }
         }
+        net.kyori.adventure.text.event.ClickEvent clickEvent = result.clickEvent();
+        if (clickEvent != null) {
+            String value = clickEvent.value();
+            String transformedValue = transformer.apply(value);
+            if (!value.equals(transformedValue)) {
+                result = result.clickEvent(net.kyori.adventure.text.event.ClickEvent.clickEvent(clickEvent.action(), transformedValue));
+            }
+        }
         return result;
     }
 

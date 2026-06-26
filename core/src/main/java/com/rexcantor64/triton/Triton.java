@@ -33,7 +33,6 @@ import com.rexcantor64.triton.utils.TritonAPIUtils;
 import com.rexcantor64.triton.web.TwinManager;
 import lombok.Getter;
 import lombok.val;
-import net.kyori.adventure.text.Component;
 import org.bstats.charts.AdvancedPie;
 import org.bstats.charts.CustomChart;
 import org.bstats.charts.SimplePie;
@@ -200,26 +199,6 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
         return translation;
     }
 
-    @Contract("_, _ -> param1")
-    public @NotNull String resolvePluginPlaceholdersBeforeTranslation(@NotNull String text, @NotNull Localized language) {
-        return text;
-    }
-
-    @Contract("_, _ -> param1")
-    public @NotNull Component resolvePluginPlaceholdersBeforeTranslation(@NotNull Component component, @NotNull Localized language) {
-        return component;
-    }
-
-    @Contract("_, _ -> param1")
-    public @NotNull String resolvePluginPlaceholdersAfterTranslation(@NotNull String text, @NotNull Localized language) {
-        return text;
-    }
-
-    @Contract("_, _ -> param1")
-    public @NotNull Component resolvePluginPlaceholdersAfterTranslation(@NotNull Component component, @NotNull Localized language) {
-        return component;
-    }
-
     public void refreshPlayers() {
         playerManager.getAll().stream()
                 .filter(Objects::nonNull)
@@ -290,14 +269,11 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
 
                 if (!hasPluginPlaceholders) {
                     linesToAdd.add("");
-                    linesToAdd.add("# Resolve other plugins' placeholders before and after Triton translations.");
-                    linesToAdd.add("# Spigot only: requires PlaceholderAPI. Supports %placeholder% and {placeholder} directly.");
-                    linesToAdd.add("# The alternate-prefixes below bridge registered PlaceholderAPI identifiers from forms like $placeholder and &placeholder.");
-                    linesToAdd.add("# Unknown placeholders and normal color codes such as &a are left untouched.");
+                    linesToAdd.add("# Preserve other plugins' internal placeholders while Triton parses translations.");
+                    linesToAdd.add("# This does not resolve PlaceholderAPI values; it only keeps tokens such as %placeholder%, {placeholder}, $placeholder and &placeholder intact.");
+                    linesToAdd.add("# Normal color codes such as &a are left untouched.");
                     linesToAdd.add("plugin-placeholders:");
                     linesToAdd.add("  enabled: false");
-                    linesToAdd.add("  before-translation: true");
-                    linesToAdd.add("  after-translation: true");
                     linesToAdd.add("  alternate-prefixes:");
                     linesToAdd.add("    - \"$\"");
                     linesToAdd.add("    - \"&\"");

@@ -5,6 +5,7 @@ import com.rexcantor64.triton.api.config.FeatureSyntax;
 import com.rexcantor64.triton.api.language.Localized;
 import com.rexcantor64.triton.utils.ComponentUtils;
 import com.rexcantor64.triton.utils.ParserUtils;
+import com.rexcantor64.triton.utils.PluginPlaceholderProtector;
 import com.rexcantor64.triton.utils.StringUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -81,21 +82,15 @@ public class LegacyParser extends MessageParser {
      */
     @Override
     public @NotNull TranslationResult<String> translateString(@NotNull String text, @NotNull Localized language, @NotNull FeatureSyntax syntax) {
-        String originalText = text;
-        text = Triton.get().resolvePluginPlaceholdersBeforeTranslation(text, language);
         Triton.get().getDumpManager().dump(Component.text(text), language, syntax);
 
-        TranslationResult<String> result = translateComponent(
+        return translateComponent(
                 new SerializedComponent(text),
                 language,
                 syntax
         )
                 .map(SerializedComponent::toComponent)
                 .map(ComponentUtils::serializeToLegacy);
-        if (result.isUnchanged() && !Objects.equals(originalText, text)) {
-            return TranslationResult.changed(text);
-        }
-        return result;
     }
 
     /**
@@ -104,19 +99,13 @@ public class LegacyParser extends MessageParser {
      */
     @Override
     public @NotNull TranslationResult<Component> translateComponent(@NotNull Component component, @NotNull Localized language, @NotNull FeatureSyntax syntax) {
-        Component originalComponent = component;
-        component = Triton.get().resolvePluginPlaceholdersBeforeTranslation(component, language);
         Triton.get().getDumpManager().dump(component, language, syntax);
 
-        TranslationResult<Component> result = translateComponent(
+        return translateComponent(
                 new SerializedComponent(component),
                 language,
                 syntax
         ).map(SerializedComponent::toComponent);
-        if (result.isUnchanged() && !Objects.equals(originalComponent, component)) {
-            return TranslationResult.changed(component);
-        }
-        return result;
     }
 
     private @NotNull TranslationResult<SerializedComponent> translateComponent(
@@ -146,7 +135,6 @@ public class LegacyParser extends MessageParser {
                             if (safeMode && !hadClick) {
                                 finalComp.getClickEvents().clear();
                             }
-                            finalComp.setText(Triton.get().resolvePluginPlaceholdersAfterTranslation(finalComp.getText(), language));
                             return finalComp;
                         })
                         .orElseGet(() -> {
@@ -384,22 +372,29 @@ public class LegacyParser extends MessageParser {
 
     private @NotNull SerializedComponent handleTranslationType(@NotNull String message, @NotNull Localized language) {
         message = Triton.get().preprocessLegacyParserTranslation(message, language);
+        boolean protectPluginPlaceholders = Triton.get().getConfig().isPluginPlaceholders();
+        if (protectPluginPlaceholders) {
+            message = PluginPlaceholderProtector.protect(message, Triton.get().getConfig().getPluginPlaceholderPrefixes());
+        }
+        SerializedComponent result;
         // TODO make minimsg the default (?)
         if (message.startsWith(MINIMESSAGE_TYPE_TAG)) {
             MiniMessage miniMessage = Triton.get().getTranslationManager().getMiniMessageInstanceForLanguage(language.getLanguage());
-            return new SerializedComponent(miniMessage.deserialize(message.substring(MINIMESSAGE_TYPE_TAG.length())));
+            result = new SerializedComponent(miniMessage.deserialize(message.substring(MINIMESSAGE_TYPE_TAG.length())));
         } else if (message.startsWith(JSON_TYPE_TAG)) {
-            return new SerializedComponent(GsonComponentSerializer.gson().deserialize(message.substring(JSON_TYPE_TAG.length())));
+            result = new SerializedComponent(GsonComponentSerializer.gson().deserialize(message.substring(JSON_TYPE_TAG.length())));
         } else {
             if (Triton.get().getConfig().getDefaultTranslationType().equalsIgnoreCase("minimessage") ||
                 Triton.get().getConfig().getDefaultTranslationType().equalsIgnoreCase("mini-message") ||
                 Triton.get().getConfig().getDefaultTranslationType().equalsIgnoreCase("minimsg") ||
                 com.rexcantor64.triton.language.TranslationManager.MINIMESSAGE_DETECTION_PATTERN.matcher(message).find()) {
                 MiniMessage miniMessage = Triton.get().getTranslationManager().getMiniMessageInstanceForLanguage(language.getLanguage());
-                return new SerializedComponent(miniMessage.deserialize(message));
+                result = new SerializedComponent(miniMessage.deserialize(message));
+            } else {
+                result = new SerializedComponent(ComponentUtils.translateAlternateColorCodes(message));
             }
-            return new SerializedComponent(ComponentUtils.translateAlternateColorCodes(message));
         }
+        return protectPluginPlaceholders ? new SerializedComponent(PluginPlaceholderProtector.restore(result.toComponent())) : result;
     }
 
     private @NotNull SerializedComponent stripClickEvents(@NotNull SerializedComponent comp) {

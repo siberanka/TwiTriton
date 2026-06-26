@@ -137,12 +137,11 @@ default-translation-type: "legacy"
 # translation template did not contain any click actions.
 safe-translations: true
 
-# Resolve other plugins' placeholders before and after Triton translations.
-# Currently only active on Spigot servers with PlaceholderAPI installed.
+# Preserve other plugins' internal placeholders while Triton parses translations.
+# This does not resolve PlaceholderAPI values; it only keeps tokens such as %placeholder%, {placeholder}, $placeholder and &placeholder intact.
+# Normal color codes such as &a are left untouched.
 plugin-placeholders:
   enabled: false
-  before-translation: true
-  after-translation: true
   alternate-prefixes:
     - "$"
     - "&"

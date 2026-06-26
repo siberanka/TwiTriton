@@ -62,8 +62,6 @@ public class MainConfig implements TritonConfig {
     private String parser = "adventure";
     private String disabledLine;
     private boolean pluginPlaceholders;
-    private boolean pluginPlaceholdersBeforeTranslation = true;
-    private boolean pluginPlaceholdersAfterTranslation = true;
     private List<String> pluginPlaceholderPrefixes = Lists.newArrayList("$", "&");
     private boolean chat;
     private boolean signedChat;
@@ -206,8 +204,6 @@ public class MainConfig implements TritonConfig {
         this.safeTranslations = section.getBoolean("safe-translations", true);
         Configuration pluginPlaceholders = section.getSection("plugin-placeholders");
         this.pluginPlaceholders = pluginPlaceholders.getBoolean("enabled", false);
-        this.pluginPlaceholdersBeforeTranslation = pluginPlaceholders.getBoolean("before-translation", true);
-        this.pluginPlaceholdersAfterTranslation = pluginPlaceholders.getBoolean("after-translation", true);
         this.pluginPlaceholderPrefixes = pluginPlaceholders.getStringList("alternate-prefixes");
         if (this.pluginPlaceholderPrefixes == null || this.pluginPlaceholderPrefixes.isEmpty()) {
             this.pluginPlaceholderPrefixes = Lists.newArrayList("$", "&");
