@@ -50,11 +50,17 @@ public class AdventureParser extends MessageParser {
      */
     @Override
     public @NotNull TranslationResult<String> translateString(@NotNull String text, @NotNull Localized language, @NotNull FeatureSyntax syntax) {
-        return translateComponent(
+        String originalText = text;
+        text = Triton.get().resolvePluginPlaceholdersBeforeTranslation(text, language);
+        TranslationResult<String> result = translateComponent(
                 ComponentUtils.deserializeFromLegacy(text),
                 language,
                 syntax
         ).map(ComponentUtils::serializeToLegacy);
+        if (result.isUnchanged() && !Objects.equals(originalText, text)) {
+            return TranslationResult.changed(text);
+        }
+        return result;
     }
 
     /**
@@ -76,6 +82,8 @@ public class AdventureParser extends MessageParser {
      */
     @Override
     public @NotNull TranslationResult<Component> translateComponent(@NotNull Component component, @NotNull Localized language, @NotNull FeatureSyntax syntax) {
+        Component originalComponent = component;
+        component = Triton.get().resolvePluginPlaceholdersBeforeTranslation(component, language);
         val configuration = new TranslationConfiguration<Component>(
                 syntax,
                 Triton.get().getConfig().getDisabledLine(),
@@ -87,7 +95,11 @@ public class AdventureParser extends MessageParser {
 
         Triton.get().getDumpManager().dump(component, language, syntax);
 
-        return translateComponent(component, configuration);
+        TranslationResult<Component> result = translateComponent(component, configuration);
+        if (result.isUnchanged() && !Objects.equals(originalComponent, component)) {
+            return TranslationResult.changed(component);
+        }
+        return result;
     }
 
     /**

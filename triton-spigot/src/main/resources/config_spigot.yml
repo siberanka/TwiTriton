@@ -156,6 +156,17 @@ default-translation-type: "legacy"
 # translation template did not contain any click actions.
 safe-translations: true
 
+# Resolve other plugins' placeholders before and after Triton translations.
+# Spigot only: requires PlaceholderAPI. Supports %placeholder% and {placeholder} directly.
+# The alternate-prefixes below bridge registered PlaceholderAPI identifiers from forms like $placeholder and &placeholder.
+# Unknown placeholders and normal color codes such as &a are left untouched.
+plugin-placeholders:
+  enabled: false
+  before-translation: true
+  after-translation: true
+  alternate-prefixes:
+    - "$"
+    - "&"
 
 # Here you can enable and disable certain features of the plugin.
 # Every section contains a "syntax-lang" and "syntax-arg" field. These are used in the placeholders.

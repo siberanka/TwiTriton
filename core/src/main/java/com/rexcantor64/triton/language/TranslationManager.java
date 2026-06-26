@@ -254,6 +254,7 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
     @Override
     public @NotNull Optional<Component> getTextComponent(@NotNull Localized locale, @NotNull String key, Component... arguments) {
         return getTextString(locale, key).map(string -> {
+            string = this.triton.resolvePluginPlaceholdersBeforeTranslation(string, locale);
             Component templateComponent = handleTranslationType(string, locale.getLanguage());
             boolean safeMode = this.triton.getConfig().isSafeTranslations();
             Component[] processedArguments = arguments;
@@ -273,12 +274,13 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
             if (safeMode && !hadClick) {
                 finalComponent = com.rexcantor64.triton.utils.ComponentUtils.stripClickEvents(finalComponent);
             }
-            return finalComponent;
+            return this.triton.resolvePluginPlaceholdersAfterTranslation(finalComponent, locale);
         });
     }
 
     public @NotNull Optional<Component> getTextComponent(@NotNull Localized locale, @NotNull String key, com.rexcantor64.triton.api.config.FeatureSyntax syntax, Component... arguments) {
         return getTextString(locale, key).map(string -> {
+            string = this.triton.resolvePluginPlaceholdersBeforeTranslation(string, locale);
             Component templateComponent = handleTranslationType(string, locale.getLanguage());
             boolean safeMode = this.triton.getConfig().isSafeTranslations() && syntax.isSafeTranslations();
             Component[] processedArguments = arguments;
@@ -298,7 +300,7 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
             if (safeMode && !hadClick) {
                 finalComponent = com.rexcantor64.triton.utils.ComponentUtils.stripClickEvents(finalComponent);
             }
-            return finalComponent;
+            return this.triton.resolvePluginPlaceholdersAfterTranslation(finalComponent, locale);
         });
     }
 
@@ -369,7 +371,7 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
     public @NotNull Optional<Component[]> getSignComponents(@NotNull Localized locale,
                                                             @NotNull SignLocation location,
                                                             @NotNull Supplier<Component[]> defaultLinesSupplier) {
-        val lines = getSignComponentsForLanguage(locale.getLanguage(), location, defaultLinesSupplier);
+        val lines = getSignComponentsForLanguage(locale, locale.getLanguage(), location, defaultLinesSupplier);
         if (lines.isPresent()) {
             return lines;
         }
@@ -379,16 +381,17 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
             if (!fallbackLanguage.isPresent()) {
                 continue;
             }
-            val textFallback = getSignComponentsForLanguage(fallbackLanguage.get(), location, defaultLinesSupplier);
+            val textFallback = getSignComponentsForLanguage(locale, fallbackLanguage.get(), location, defaultLinesSupplier);
             if (textFallback.isPresent()) {
                 return textFallback;
             }
         }
 
-        return getSignComponentsForLanguage(triton.getLanguageManager().getMainLanguage(), location, defaultLinesSupplier);
+        return getSignComponentsForLanguage(locale, triton.getLanguageManager().getMainLanguage(), location, defaultLinesSupplier);
     }
 
-    private @NotNull Optional<Component[]> getSignComponentsForLanguage(@NotNull Language language,
+    private @NotNull Optional<Component[]> getSignComponentsForLanguage(@NotNull Localized locale,
+                                                                        @NotNull Language language,
                                                                         @NotNull SignLocation location,
                                                                         @NotNull Supplier<Component[]> defaultLinesSupplier) {
         this.triton.getLogger().logTrace("Trying to get sign translation on location '%1' in language '%2'", location, language.getLanguageId());
@@ -403,10 +406,11 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
         }
 
         this.triton.getLogger().logTrace("Found sign translation on location '%1' in language '%2'", location, language.getLanguageId());
-        return Optional.of(formatLines(language, lines, defaultLinesSupplier));
+        return Optional.of(formatLines(locale, language, lines, defaultLinesSupplier));
     }
 
-    public Component[] formatLines(@NonNull Language language,
+    public Component[] formatLines(@NonNull Localized locale,
+                                   @NonNull Language language,
                                    @NonNull String[] lines,
                                    @NonNull Supplier<@Nullable Component @NotNull []> defaultLinesSupplier) {
         val result = new Component[8];
@@ -418,7 +422,8 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
                 continue;
             }
             if (!lines[i].equals("%use_line_default%")) {
-                result[i] = handleTranslationType(lines[i], language);
+                String line = this.triton.resolvePluginPlaceholdersBeforeTranslation(lines[i], locale);
+                result[i] = this.triton.resolvePluginPlaceholdersAfterTranslation(handleTranslationType(line, language), locale);
                 continue;
             }
 

@@ -25,10 +25,12 @@ import com.rexcantor64.triton.spigot.plugin.SpigotPlugin;
 import com.rexcantor64.triton.spigot.utils.BaseComponentUtils;
 import com.rexcantor64.triton.spigot.wrappers.MaterialWrapperManager;
 import com.rexcantor64.triton.terminal.Log4jInjector;
+import com.rexcantor64.triton.utils.ComponentUtils;
 import com.rexcantor64.triton.utils.ReflectionUtils;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
+import net.kyori.adventure.text.Component;
 import org.bstats.bukkit.Metrics;
 import org.bstats.charts.CustomChart;
 import org.bstats.charts.SimplePie;
@@ -163,13 +165,53 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
     @Override
     @Contract("_, _ -> _")
     public @NotNull String preprocessLegacyParserTranslation(@NotNull String translation, @NotNull Localized language) {
+        return resolvePluginPlaceholdersBeforeTranslation(translation, language);
+    }
+
+    @Override
+    @Contract("_, _ -> _")
+    public @NotNull String resolvePluginPlaceholdersBeforeTranslation(@NotNull String text, @NotNull Localized language) {
+        if (!getConfig().isPluginPlaceholders() || !getConfig().isPluginPlaceholdersBeforeTranslation()) {
+            return text;
+        }
+        return resolvePluginPlaceholders(text, language);
+    }
+
+    @Override
+    @Contract("_, _ -> _")
+    public @NotNull Component resolvePluginPlaceholdersBeforeTranslation(@NotNull Component component, @NotNull Localized language) {
+        if (!getConfig().isPluginPlaceholders() || !getConfig().isPluginPlaceholdersBeforeTranslation()) {
+            return component;
+        }
+        return ComponentUtils.transformTextContent(component, text -> resolvePluginPlaceholders(text, language));
+    }
+
+    @Override
+    @Contract("_, _ -> _")
+    public @NotNull String resolvePluginPlaceholdersAfterTranslation(@NotNull String text, @NotNull Localized language) {
+        if (!getConfig().isPluginPlaceholders() || !getConfig().isPluginPlaceholdersAfterTranslation()) {
+            return text;
+        }
+        return resolvePluginPlaceholders(text, language);
+    }
+
+    @Override
+    @Contract("_, _ -> _")
+    public @NotNull Component resolvePluginPlaceholdersAfterTranslation(@NotNull Component component, @NotNull Localized language) {
+        if (!getConfig().isPluginPlaceholders() || !getConfig().isPluginPlaceholdersAfterTranslation()) {
+            return component;
+        }
+        return ComponentUtils.transformTextContent(component, text -> resolvePluginPlaceholders(text, language));
+    }
+
+    private @NotNull String resolvePluginPlaceholders(@NotNull String text, @NotNull Localized language) {
         if (!isPapiEnabled() || !(language instanceof SpigotLanguagePlayer)) {
-            return translation;
+            return text;
         }
         SpigotLanguagePlayer slp = (SpigotLanguagePlayer) language;
         return slp.toBukkit()
-                .map(player -> PapiProcessor.replacePlaceholders(translation, player))
-                .orElse(translation);
+                .map(player -> PapiProcessor.replacePlaceholders(text, player, getConfig().getPluginPlaceholderPrefixes()))
+                .orElse(text);
     }
 
     @Override

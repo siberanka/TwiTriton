@@ -33,6 +33,7 @@ import com.rexcantor64.triton.utils.TritonAPIUtils;
 import com.rexcantor64.triton.web.TwinManager;
 import lombok.Getter;
 import lombok.val;
+import net.kyori.adventure.text.Component;
 import org.bstats.charts.AdvancedPie;
 import org.bstats.charts.CustomChart;
 import org.bstats.charts.SimplePie;
@@ -199,6 +200,26 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
         return translation;
     }
 
+    @Contract("_, _ -> param1")
+    public @NotNull String resolvePluginPlaceholdersBeforeTranslation(@NotNull String text, @NotNull Localized language) {
+        return text;
+    }
+
+    @Contract("_, _ -> param1")
+    public @NotNull Component resolvePluginPlaceholdersBeforeTranslation(@NotNull Component component, @NotNull Localized language) {
+        return component;
+    }
+
+    @Contract("_, _ -> param1")
+    public @NotNull String resolvePluginPlaceholdersAfterTranslation(@NotNull String text, @NotNull Localized language) {
+        return text;
+    }
+
+    @Contract("_, _ -> param1")
+    public @NotNull Component resolvePluginPlaceholdersAfterTranslation(@NotNull Component component, @NotNull Localized language) {
+        return component;
+    }
+
     public void refreshPlayers() {
         playerManager.getAll().stream()
                 .filter(Objects::nonNull)
@@ -226,6 +247,7 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
             List<String> lines = Files.readAllLines(configFile.toPath(), StandardCharsets.UTF_8);
             boolean hasDefaultType = false;
             boolean hasSafeTranslations = false;
+            boolean hasPluginPlaceholders = false;
             int insertIndex = -1;
             
             for (int i = 0; i < lines.size(); i++) {
@@ -236,12 +258,15 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
                 if (line.startsWith("safe-translations:")) {
                     hasSafeTranslations = true;
                 }
+                if (line.startsWith("plugin-placeholders:")) {
+                    hasPluginPlaceholders = true;
+                }
                 if (line.startsWith("message-parser:")) {
                     insertIndex = i;
                 }
             }
             
-            if (!hasDefaultType || !hasSafeTranslations) {
+            if (!hasDefaultType || !hasSafeTranslations || !hasPluginPlaceholders) {
                 List<String> newLines = new ArrayList<>(lines);
                 int targetIndex = insertIndex != -1 ? insertIndex + 1 : newLines.size();
                 List<String> linesToAdd = new ArrayList<>();
@@ -262,10 +287,25 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
                     linesToAdd.add("# translation template did not contain any click actions.");
                     linesToAdd.add("safe-translations: true");
                 }
+
+                if (!hasPluginPlaceholders) {
+                    linesToAdd.add("");
+                    linesToAdd.add("# Resolve other plugins' placeholders before and after Triton translations.");
+                    linesToAdd.add("# Spigot only: requires PlaceholderAPI. Supports %placeholder% and {placeholder} directly.");
+                    linesToAdd.add("# The alternate-prefixes below bridge registered PlaceholderAPI identifiers from forms like $placeholder and &placeholder.");
+                    linesToAdd.add("# Unknown placeholders and normal color codes such as &a are left untouched.");
+                    linesToAdd.add("plugin-placeholders:");
+                    linesToAdd.add("  enabled: false");
+                    linesToAdd.add("  before-translation: true");
+                    linesToAdd.add("  after-translation: true");
+                    linesToAdd.add("  alternate-prefixes:");
+                    linesToAdd.add("    - \"$\"");
+                    linesToAdd.add("    - \"&\"");
+                }
                 
                 newLines.addAll(targetIndex, linesToAdd);
                 Files.write(configFile.toPath(), newLines, StandardCharsets.UTF_8);
-                logger.logInfo("Successfully appended missing MiniMessage configuration options to config.yml!");
+                logger.logInfo("Successfully appended missing translation configuration options to config.yml!");
             }
         } catch (Exception e) {
             logger.logError(e, "Failed to update config.yml with missing options.");

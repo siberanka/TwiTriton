@@ -81,15 +81,21 @@ public class LegacyParser extends MessageParser {
      */
     @Override
     public @NotNull TranslationResult<String> translateString(@NotNull String text, @NotNull Localized language, @NotNull FeatureSyntax syntax) {
+        String originalText = text;
+        text = Triton.get().resolvePluginPlaceholdersBeforeTranslation(text, language);
         Triton.get().getDumpManager().dump(Component.text(text), language, syntax);
 
-        return translateComponent(
+        TranslationResult<String> result = translateComponent(
                 new SerializedComponent(text),
                 language,
                 syntax
         )
                 .map(SerializedComponent::toComponent)
                 .map(ComponentUtils::serializeToLegacy);
+        if (result.isUnchanged() && !Objects.equals(originalText, text)) {
+            return TranslationResult.changed(text);
+        }
+        return result;
     }
 
     /**
@@ -98,13 +104,19 @@ public class LegacyParser extends MessageParser {
      */
     @Override
     public @NotNull TranslationResult<Component> translateComponent(@NotNull Component component, @NotNull Localized language, @NotNull FeatureSyntax syntax) {
+        Component originalComponent = component;
+        component = Triton.get().resolvePluginPlaceholdersBeforeTranslation(component, language);
         Triton.get().getDumpManager().dump(component, language, syntax);
 
-        return translateComponent(
+        TranslationResult<Component> result = translateComponent(
                 new SerializedComponent(component),
                 language,
                 syntax
         ).map(SerializedComponent::toComponent);
+        if (result.isUnchanged() && !Objects.equals(originalComponent, component)) {
+            return TranslationResult.changed(component);
+        }
+        return result;
     }
 
     private @NotNull TranslationResult<SerializedComponent> translateComponent(
@@ -134,6 +146,7 @@ public class LegacyParser extends MessageParser {
                             if (safeMode && !hadClick) {
                                 finalComp.getClickEvents().clear();
                             }
+                            finalComp.setText(Triton.get().resolvePluginPlaceholdersAfterTranslation(finalComp.getText(), language));
                             return finalComp;
                         })
                         .orElseGet(() -> {
