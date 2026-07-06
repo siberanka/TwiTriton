@@ -112,6 +112,30 @@ Triton includes native support for translating custom player GUI forms sent to B
 - **Recursive Translation**: Triton automatically traverses the form object graph recursively, translating all string elements (such as form titles, description texts, input placeholders, buttons, and options lists) matching Triton's translation formats (like `[lang]key[/lang]`) into the player's selected language.
 - **Automatic Integration**: No extra configuration is required. The bridge is activated automatically if Geyser or Floodgate is detected on the server.
 
+### Java/Bedrock Platform Variants
+
+Triton can send different text to Java Edition and Bedrock Edition players without changing the player's selected language.
+- **Storage**: Platform variants are loaded from the folder configured under `platform-variants.folder`, which defaults to `platforms`. Every `.json` file in that folder is loaded, not only `default.json`.
+- **Usage**: Use `[plat]example.variant[/plat]`, `[plat]example.variant[arg]value[/arg][/plat]`, or `%triton_plat_example.variant%`.
+- **Formatting**: Variant values support the same formatting pipeline as translations, including legacy colors, MiniMessage auto-detection, `[minimsg]`, `[triton_json]`, arguments, nested `[lang]key[/lang]` placeholders, and safe-translation protections.
+
+Example `plugins/Triton/platforms/default.json`:
+
+```json
+{
+  "items": [
+    {
+      "type": "platform",
+      "key": "example.variant",
+      "variants": {
+        "java": "&aJava player text with %1.",
+        "bedrock": "&bBedrock player text with %1."
+      }
+    }
+  ]
+}
+```
+
 ---
 
 # Triton (Türkçe)
