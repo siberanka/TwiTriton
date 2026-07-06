@@ -87,6 +87,44 @@ public class AdventureParser extends MessageParser {
 
         Triton.get().getDumpManager().dump(component, language, syntax);
 
+        TranslationResult<Component> result = translateComponent(component, configuration);
+        if (result.isToRemove()) {
+            return result;
+        }
+
+        Component translatedComponent = result.getResult().orElse(component);
+        TranslationResult<Component> platformResult = translatePlatformComponent(translatedComponent, language);
+        if (platformResult.isToRemove()) {
+            return platformResult;
+        }
+        if (platformResult.getResult().isPresent()) {
+            Component platformComponent = platformResult.getResultRaw();
+            TranslationResult<Component> nestedLanguageResult = translateComponent(platformComponent, configuration);
+            if (nestedLanguageResult.isToRemove()) {
+                return nestedLanguageResult;
+            }
+            if (nestedLanguageResult.getResult().isPresent()) {
+                return TranslationResult.changed(nestedLanguageResult.getResultRaw());
+            }
+            return TranslationResult.changed(platformComponent);
+        }
+        return result;
+    }
+
+    private @NotNull TranslationResult<Component> translatePlatformComponent(@NotNull Component component, @NotNull Localized language) {
+        if (!Triton.get().getConfig().isPlatformVariants()) {
+            return TranslationResult.unchanged();
+        }
+
+        FeatureSyntax syntax = Triton.get().getConfig().getPlatformVariantsSyntax();
+        val configuration = new TranslationConfiguration<Component>(
+                syntax,
+                Triton.get().getConfig().getDisabledLine(),
+                (key, arguments) -> Triton.get().getPlatformVariantManager()
+                        .getTextComponentOr404(language, key, syntax, arguments),
+                Function.identity()
+        );
+
         return translateComponent(component, configuration);
     }
 

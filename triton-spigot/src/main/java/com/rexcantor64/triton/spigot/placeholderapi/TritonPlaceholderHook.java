@@ -48,10 +48,25 @@ public class TritonPlaceholderHook extends PlaceholderExpansion implements Relat
         } else {
             locale = triton.getPlayerManager().get(p.getUniqueId());
         }
-        val component = triton.getTranslationManager().getTextComponentOr404(locale, params);
+        val component = params.startsWith("plat_")
+                ? translateNestedLanguagePlaceholders(
+                        triton.getPlatformVariantManager()
+                                .getTextComponentOr404(locale, params.substring("plat_".length()), triton.getConfig().getPlatformVariantsSyntax()),
+                        locale
+                )
+                : triton.getTranslationManager().getTextComponentOr404(locale, params);
         val text = ComponentUtils.serializeToLegacy(component);
 
         return PlaceholderAPI.setPlaceholders(p, text);
+    }
+
+    private net.kyori.adventure.text.Component translateNestedLanguagePlaceholders(net.kyori.adventure.text.Component component,
+                                                                                   Localized locale) {
+        val result = triton.getMessageParser().translateComponent(component, locale, triton.getConfig().getChatSyntax());
+        if (result.isToRemove()) {
+            return net.kyori.adventure.text.Component.empty();
+        }
+        return result.getResult().orElse(component);
     }
 
 

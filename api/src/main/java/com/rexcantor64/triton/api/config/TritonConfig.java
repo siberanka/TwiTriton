@@ -359,5 +359,20 @@ public interface TritonConfig {
      */
     boolean isSafeTranslations();
 
+    /**
+     * @return Whether Java/Bedrock platform-specific placeholders are enabled.
+     */
+    boolean isPlatformVariants();
+
+    /**
+     * @return The folder name used to load Java/Bedrock platform-specific placeholders.
+     */
+    String getPlatformVariantsFolder();
+
+    /**
+     * @return The syntax used by Java/Bedrock platform-specific placeholders.
+     */
+    FeatureSyntax getPlatformVariantsSyntax();
+
 }
 

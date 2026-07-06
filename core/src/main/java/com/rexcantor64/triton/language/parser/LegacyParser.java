@@ -43,6 +43,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -147,6 +148,76 @@ public class LegacyParser extends MessageParser {
                             return replaceArguments(notFoundComponent, new SerializedComponent(key), argsConcatenationComp);
                         }),
                 prevText -> Triton.get().getTranslationManager().matchPattern(prevText, language)
+        );
+
+        TranslationResult<SerializedComponent> result = translateComponent(component, configuration);
+        if (result.isToRemove()) {
+            return result;
+        }
+
+        SerializedComponent translatedComponent = result.getResult().orElse(component);
+        TranslationResult<SerializedComponent> platformResult = translatePlatformComponent(translatedComponent, language);
+        if (platformResult.isToRemove()) {
+            return platformResult;
+        }
+        if (platformResult.getResult().isPresent()) {
+            SerializedComponent platformComponent = platformResult.getResultRaw();
+            TranslationResult<SerializedComponent> nestedLanguageResult = translateComponent(platformComponent, configuration);
+            if (nestedLanguageResult.isToRemove()) {
+                return nestedLanguageResult;
+            }
+            if (nestedLanguageResult.getResult().isPresent()) {
+                return TranslationResult.changed(nestedLanguageResult.getResultRaw());
+            }
+            return TranslationResult.changed(platformComponent);
+        }
+        return result;
+    }
+
+    private @NotNull TranslationResult<SerializedComponent> translatePlatformComponent(
+            @NotNull SerializedComponent component,
+            @NotNull Localized language
+    ) {
+        if (!Triton.get().getConfig().isPlatformVariants()) {
+            return TranslationResult.unchanged();
+        }
+
+        FeatureSyntax syntax = Triton.get().getConfig().getPlatformVariantsSyntax();
+        val configuration = new TranslationConfiguration<SerializedComponent>(
+                syntax,
+                Triton.get().getConfig().getDisabledLine(),
+                (key, arguments) -> Triton.get().getPlatformVariantManager().getTextString(language, key)
+                        .map(text -> this.handleTranslationType(text, language))
+                        .map(comp -> {
+                            boolean hadClick = false;
+                            boolean safeMode = Triton.get().getConfig().isSafeTranslations() && syntax.isSafeTranslations();
+                            if (safeMode) {
+                                hadClick = !comp.getClickEvents().isEmpty();
+                            }
+                            SerializedComponent[] processedArguments = arguments;
+                            if (safeMode && arguments != null) {
+                                processedArguments = new SerializedComponent[arguments.length];
+                                for (int i = 0; i < arguments.length; i++) {
+                                    processedArguments[i] = sanitizeSerializedComponent(stripClickEvents(arguments[i]));
+                                }
+                            }
+                            SerializedComponent finalComp = replaceArguments(comp, processedArguments);
+                            if (safeMode && !hadClick) {
+                                finalComp.getClickEvents().clear();
+                            }
+                            return finalComp;
+                        })
+                        .orElseGet(() -> {
+                            val notFoundComponent = new SerializedComponent(Triton.get().getTranslationManager().getTranslationNotFoundComponent());
+                            val argsConcatenation = Arrays.stream(arguments).map(SerializedComponent::getText).collect(Collectors.joining(", "));
+                            val argsConcatenationComp = new SerializedComponent("[" + argsConcatenation + "]");
+                            for (SerializedComponent argument : arguments) {
+                                argsConcatenationComp.importFromComponent(argument);
+                            }
+
+                            return replaceArguments(notFoundComponent, new SerializedComponent(key), argsConcatenationComp);
+                        }),
+                Function.identity()
         );
 
         return translateComponent(component, configuration);

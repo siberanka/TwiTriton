@@ -1,0 +1,12 @@
+{
+  "items": [
+    {
+      "type": "platform",
+      "key": "example.variant",
+      "variants": {
+        "java": "&aJava player text with %1.",
+        "bedrock": "&bBedrock player text with %1."
+      }
+    }
+  ]
+}

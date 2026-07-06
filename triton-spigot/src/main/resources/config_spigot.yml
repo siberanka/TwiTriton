@@ -156,6 +156,14 @@ default-translation-type: "legacy"
 # translation template did not contain any click actions.
 safe-translations: true
 
+# Java/Bedrock-specific placeholders. These are loaded from platforms/default.json by default.
+# Usage: [plat]example.key[/plat] or %triton_plat_example.key%.
+platform-variants:
+  enabled: true
+  folder: "platforms"
+  syntax-lang: plat
+  syntax-arg: arg
+
 
 # Here you can enable and disable certain features of the plugin.
 # Every section contains a "syntax-lang" and "syntax-arg" field. These are used in the placeholders.

@@ -339,7 +339,7 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
         return Optional.of(msg);
     }
 
-    private @NotNull Component handleTranslationType(@NotNull String message, @NotNull Language language) {
+    public @NotNull Component handleTranslationType(@NotNull String message, @NotNull Language language) {
         // TODO make minimsg the default (?)
         if (message.startsWith(MINIMESSAGE_TYPE_TAG)) {
             return getMiniMessageInstanceForLanguage(language).deserialize(message.substring(MINIMESSAGE_TYPE_TAG.length()));
@@ -491,7 +491,7 @@ public class TranslationManager implements com.rexcantor64.triton.api.language.T
         return triton.getMessageParser().replaceArguments(component, Arrays.asList(args));
     }
 
-    private Component getTranslationNotFoundComponent(String key, Component... arguments) {
+    public Component getTranslationNotFoundComponent(String key, Component... arguments) {
         val argumentsComponents = Component.join(JoinConfiguration.arrayLike(), arguments);
 
         return replaceArguments(translationNotFoundComponent, Component.text(key), argumentsComponents);

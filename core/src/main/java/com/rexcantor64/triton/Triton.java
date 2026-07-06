@@ -13,6 +13,7 @@ import com.rexcantor64.triton.config.interfaces.YamlConfiguration;
 import com.rexcantor64.triton.debug.DumpManager;
 import com.rexcantor64.triton.dependencies.Dependency;
 import com.rexcantor64.triton.language.LanguageManager;
+import com.rexcantor64.triton.language.PlatformVariantManager;
 import com.rexcantor64.triton.language.TranslationManager;
 import com.rexcantor64.triton.language.parser.AdventureParser;
 import com.rexcantor64.triton.language.parser.LegacyParser;
@@ -68,6 +69,7 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
     @Deprecated
     private final LanguageParser languageParser = new LegacyLanguageParser();
     private TranslationManager translationManager;
+    private PlatformVariantManager platformVariantManager;
     private MessageParser messageParser;
     private TwinManager twinManager;
     protected final PlayerManager<P> playerManager;
@@ -137,6 +139,7 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
         languageManager = new LanguageManager(this);
         messagesConfig = new MessagesConfig();
         translationManager = new TranslationManager(this);
+        platformVariantManager = new PlatformVariantManager(this);
 
         LanguageMigration.migrate();
 
@@ -170,6 +173,7 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
         setupStorage();
         languageManager.setup();
         translationManager.setup();
+        platformVariantManager.setup();
         if (this.packetEventsManager != null) {
             this.packetEventsManager.onReload();
         }
@@ -226,6 +230,7 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
             List<String> lines = Files.readAllLines(configFile.toPath(), StandardCharsets.UTF_8);
             boolean hasDefaultType = false;
             boolean hasSafeTranslations = false;
+            boolean hasPlatformVariants = false;
             int insertIndex = -1;
             
             for (int i = 0; i < lines.size(); i++) {
@@ -236,12 +241,15 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
                 if (line.startsWith("safe-translations:")) {
                     hasSafeTranslations = true;
                 }
+                if (line.startsWith("platform-variants:")) {
+                    hasPlatformVariants = true;
+                }
                 if (line.startsWith("message-parser:")) {
                     insertIndex = i;
                 }
             }
             
-            if (!hasDefaultType || !hasSafeTranslations) {
+            if (!hasDefaultType || !hasSafeTranslations || !hasPlatformVariants) {
                 List<String> newLines = new ArrayList<>(lines);
                 int targetIndex = insertIndex != -1 ? insertIndex + 1 : newLines.size();
                 List<String> linesToAdd = new ArrayList<>();
@@ -262,10 +270,21 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
                     linesToAdd.add("# translation template did not contain any click actions.");
                     linesToAdd.add("safe-translations: true");
                 }
+
+                if (!hasPlatformVariants) {
+                    linesToAdd.add("");
+                    linesToAdd.add("# Java/Bedrock-specific placeholders. These are loaded from platforms/default.json by default.");
+                    linesToAdd.add("# Usage: [plat]example.key[/plat] or %triton_plat_example.key%.");
+                    linesToAdd.add("platform-variants:");
+                    linesToAdd.add("  enabled: true");
+                    linesToAdd.add("  folder: \"platforms\"");
+                    linesToAdd.add("  syntax-lang: plat");
+                    linesToAdd.add("  syntax-arg: arg");
+                }
                 
                 newLines.addAll(targetIndex, linesToAdd);
                 Files.write(configFile.toPath(), newLines, StandardCharsets.UTF_8);
-                logger.logInfo("Successfully appended missing MiniMessage configuration options to config.yml!");
+                logger.logInfo("Successfully appended missing configuration options to config.yml!");
             }
         } catch (Exception e) {
             logger.logError(e, "Failed to update config.yml with missing options.");
