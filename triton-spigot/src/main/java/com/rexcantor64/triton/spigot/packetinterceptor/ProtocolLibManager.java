@@ -10,6 +10,10 @@ import org.jetbrains.annotations.NotNull;
 
 public class ProtocolLibManager {
 
+    public static boolean isProtocolLibInstalled() {
+        return Bukkit.getPluginManager().getPlugin("ProtocolLib") != null;
+    }
+
     /**
      * Checks if ProtocolLib is enabled and if its version matches
      * the expected version.

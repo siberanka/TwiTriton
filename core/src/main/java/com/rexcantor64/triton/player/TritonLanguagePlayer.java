@@ -17,7 +17,7 @@ public abstract class TritonLanguagePlayer<P> implements LanguagePlayer {
     private PacketEventsRefresh packetEventsRefresh;
 
     protected TritonLanguagePlayer() {
-        if (Triton.get().getConfig().isUsePacketEvents()) {
+        if (Triton.get().getPacketEventsManager() != null) {
             this.packetEventsRefresh = new PacketEventsRefresh(this);
         }
     }
