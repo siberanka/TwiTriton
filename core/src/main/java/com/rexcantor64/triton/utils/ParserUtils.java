@@ -1,5 +1,6 @@
 package com.rexcantor64.triton.utils;
 
+import com.rexcantor64.triton.api.config.FeatureSyntax;
 import com.rexcantor64.triton.language.parser.TranslationConfiguration;
 import lombok.val;
 
@@ -12,6 +13,9 @@ import java.util.List;
  * @since 4.0.0
  */
 public class ParserUtils {
+    public static final String DEFAULT_LANG_SYNTAX = "lang";
+    public static final String DEFAULT_ARGS_SYNTAX = "args";
+    public static final String DEFAULT_ARG_SYNTAX = "arg";
 
     /**
      * Find the indexes of all root "[pattern][/pattern]" tags in the given string.
@@ -56,6 +60,38 @@ public class ParserUtils {
             }
         }
         return result;
+    }
+
+    public static boolean hasPattern(String input, String pattern) {
+        return input != null && input.contains("[" + pattern + "]");
+    }
+
+    public static boolean isDefaultLangSyntax(FeatureSyntax syntax) {
+        return DEFAULT_LANG_SYNTAX.equals(syntax.getLang());
+    }
+
+    public static FeatureSyntax defaultLangSyntax(FeatureSyntax parent) {
+        return new FeatureSyntax() {
+            @Override
+            public String getLang() {
+                return DEFAULT_LANG_SYNTAX;
+            }
+
+            @Override
+            public String getArgs() {
+                return DEFAULT_ARGS_SYNTAX;
+            }
+
+            @Override
+            public String getArg() {
+                return DEFAULT_ARG_SYNTAX;
+            }
+
+            @Override
+            public boolean isSafeTranslations() {
+                return parent.isSafeTranslations();
+            }
+        };
     }
 
     /**

@@ -113,7 +113,37 @@ public class LegacyParser extends MessageParser {
             @NotNull Localized language,
             @NotNull FeatureSyntax syntax
     ) {
-        val configuration = new TranslationConfiguration<SerializedComponent>(
+        val configuration = createLanguageConfiguration(language, syntax);
+
+        TranslationResult<SerializedComponent> result = translateComponentWithFallback(component, language, syntax, configuration);
+        if (result.isToRemove()) {
+            return result;
+        }
+
+        SerializedComponent translatedComponent = result.getResult().orElse(component);
+        TranslationResult<SerializedComponent> platformResult = translatePlatformComponent(translatedComponent, language);
+        if (platformResult.isToRemove()) {
+            return platformResult;
+        }
+        if (platformResult.getResult().isPresent()) {
+            SerializedComponent platformComponent = platformResult.getResultRaw();
+            TranslationResult<SerializedComponent> nestedLanguageResult = translateComponentWithFallback(platformComponent, language, syntax, configuration);
+            if (nestedLanguageResult.isToRemove()) {
+                return nestedLanguageResult;
+            }
+            if (nestedLanguageResult.getResult().isPresent()) {
+                return TranslationResult.changed(nestedLanguageResult.getResultRaw());
+            }
+            return TranslationResult.changed(platformComponent);
+        }
+        return result;
+    }
+
+    private @NotNull TranslationConfiguration<SerializedComponent> createLanguageConfiguration(
+            @NotNull Localized language,
+            @NotNull FeatureSyntax syntax
+    ) {
+        return new TranslationConfiguration<SerializedComponent>(
                 syntax,
                 Triton.get().getConfig().getDisabledLine(),
                 (key, arguments) -> Triton.get().getTranslationManager().getTextString(language, key)
@@ -149,28 +179,23 @@ public class LegacyParser extends MessageParser {
                         }),
                 prevText -> Triton.get().getTranslationManager().matchPattern(prevText, language)
         );
+    }
 
+    private @NotNull TranslationResult<SerializedComponent> translateComponentWithFallback(
+            @NotNull SerializedComponent component,
+            @NotNull Localized language,
+            @NotNull FeatureSyntax syntax,
+            @NotNull TranslationConfiguration<SerializedComponent> configuration
+    ) {
         TranslationResult<SerializedComponent> result = translateComponent(component, configuration);
-        if (result.isToRemove()) {
+        if (!result.isUnchanged()) {
             return result;
         }
 
-        SerializedComponent translatedComponent = result.getResult().orElse(component);
-        TranslationResult<SerializedComponent> platformResult = translatePlatformComponent(translatedComponent, language);
-        if (platformResult.isToRemove()) {
-            return platformResult;
+        if (!ParserUtils.isDefaultLangSyntax(syntax) && ParserUtils.hasPattern(component.getText(), ParserUtils.DEFAULT_LANG_SYNTAX)) {
+            return translateComponent(component, createLanguageConfiguration(language, ParserUtils.defaultLangSyntax(syntax)));
         }
-        if (platformResult.getResult().isPresent()) {
-            SerializedComponent platformComponent = platformResult.getResultRaw();
-            TranslationResult<SerializedComponent> nestedLanguageResult = translateComponent(platformComponent, configuration);
-            if (nestedLanguageResult.isToRemove()) {
-                return nestedLanguageResult;
-            }
-            if (nestedLanguageResult.getResult().isPresent()) {
-                return TranslationResult.changed(nestedLanguageResult.getResultRaw());
-            }
-            return TranslationResult.changed(platformComponent);
-        }
+
         return result;
     }
 

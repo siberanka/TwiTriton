@@ -25,6 +25,7 @@ import com.comphenix.protocol.wrappers.nbt.NbtFactory;
 import com.rexcantor64.triton.Triton;
 import com.rexcantor64.triton.language.item.SignLocation;
 import com.rexcantor64.triton.language.parser.MessageParser;
+import com.rexcantor64.triton.language.parser.TranslationResult;
 import com.rexcantor64.triton.spigot.SpigotTriton;
 import com.rexcantor64.triton.spigot.player.SpigotLanguagePlayer;
 import com.rexcantor64.triton.spigot.utils.BaseComponentUtils;
@@ -51,6 +52,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.MerchantRecipe;
 import org.bukkit.plugin.Plugin;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -169,6 +172,7 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
         packetHandlers.put(PacketType.Play.Server.PLAYER_LIST_HEADER_FOOTER, asAsync(this::handlePlayerListHeaderFooter));
         packetHandlers.put(PacketType.Play.Server.OPEN_WINDOW, asAsync(this::handleOpenWindow));
         packetHandlers.put(PacketType.Play.Server.KICK_DISCONNECT, asSync(this::handleKickDisconnect));
+        packetHandlers.put(PacketType.Play.Server.TAB_COMPLETE, asAsync(this::handleTabComplete));
         if (MinecraftVersion.AQUATIC_UPDATE.atOrAbove()) { // 1.13+
             // Scoreboard rewrite on 1.13
             // It allows unlimited length team prefixes and suffixes
@@ -577,6 +581,120 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
 
         languagePlayer.setLastTabHeader(header);
         languagePlayer.setLastTabFooter(footer);
+    }
+
+    private void handleTabComplete(PacketEvent packet, SpigotLanguagePlayer languagePlayer) {
+        if (!main.getConfig().isChat()) return;
+
+        val modifier = packet.getPacket().getModifier();
+        for (int i = 0; i < modifier.size(); i++) {
+            Object value = modifier.readSafely(i);
+            if (value == null || !value.getClass().getName().equals("com.mojang.brigadier.suggestion.Suggestions")) {
+                continue;
+            }
+
+            int fieldIndex = i;
+            Optional<Object> translatedSuggestions = translateCommandSuggestions(value, languagePlayer);
+            translatedSuggestions.ifPresent(suggestions -> modifier.writeSafely(fieldIndex, suggestions));
+            return;
+        }
+    }
+
+    private Optional<Object> translateCommandSuggestions(Object suggestions, SpigotLanguagePlayer languagePlayer) {
+        try {
+            Method getRange = suggestions.getClass().getMethod("getRange");
+            Method getList = suggestions.getClass().getMethod("getList");
+            List<?> originalList = (List<?>) getList.invoke(suggestions);
+            List<Object> translatedList = new ArrayList<>(originalList.size());
+            boolean changed = false;
+
+            for (Object suggestion : originalList) {
+                Optional<Object> translatedSuggestion = translateCommandSuggestion(suggestion, languagePlayer);
+                if (translatedSuggestion.isPresent()) {
+                    translatedList.add(translatedSuggestion.get());
+                    changed = true;
+                } else {
+                    translatedList.add(suggestion);
+                }
+            }
+
+            if (!changed) {
+                return Optional.empty();
+            }
+
+            Constructor<?> constructor = suggestions.getClass().getConstructor(
+                    Class.forName("com.mojang.brigadier.context.StringRange"),
+                    List.class
+            );
+            return Optional.of(constructor.newInstance(getRange.invoke(suggestions), translatedList));
+        } catch (Exception e) {
+            Triton.get().getLogger().logTrace("Could not translate command suggestion tooltips: %1", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    private Optional<Object> translateCommandSuggestion(Object suggestion, SpigotLanguagePlayer languagePlayer) {
+        try {
+            Method getTooltip = suggestion.getClass().getMethod("getTooltip");
+            Object tooltip = getTooltip.invoke(suggestion);
+            if (tooltip == null) {
+                return Optional.empty();
+            }
+
+            Optional<Component> tooltipComponent = deserializeSuggestionTooltip(tooltip);
+            if (!tooltipComponent.isPresent()) {
+                return Optional.empty();
+            }
+
+            TranslationResult<Component> result = parser()
+                    .translateComponent(tooltipComponent.get(), languagePlayer, main.getConfig().getChatSyntax());
+            if (result.isUnchanged()) {
+                return Optional.empty();
+            }
+
+            Component translated = result.isToRemove() ? Component.empty() : result.getResultRaw();
+            Object translatedTooltip = serializeSuggestionTooltip(translated, tooltip);
+
+            Constructor<?> constructor = suggestion.getClass().getConstructor(
+                    Class.forName("com.mojang.brigadier.context.StringRange"),
+                    String.class,
+                    Class.forName("com.mojang.brigadier.Message")
+            );
+            return Optional.of(constructor.newInstance(
+                    suggestion.getClass().getMethod("getRange").invoke(suggestion),
+                    suggestion.getClass().getMethod("getText").invoke(suggestion),
+                    translatedTooltip
+            ));
+        } catch (Exception e) {
+            Triton.get().getLogger().logTrace("Could not translate a command suggestion tooltip: %1", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    private Optional<Component> deserializeSuggestionTooltip(Object tooltip) {
+        try {
+            return Optional.of(WrappedComponentUtils.deserialize(WrappedChatComponent.fromHandle(tooltip)));
+        } catch (Exception ignored) {
+            // Brigadier can also use plain LiteralMessage tooltips.
+        }
+
+        try {
+            Method getString = tooltip.getClass().getMethod("getString");
+            return Optional.of(Component.text((String) getString.invoke(tooltip)));
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
+    private Object serializeSuggestionTooltip(Component translated, Object originalTooltip) throws Exception {
+        try {
+            WrappedChatComponent.fromHandle(originalTooltip);
+            WrappedChatComponent translatedComponent = WrappedComponentUtils.serialize(translated);
+            return translatedComponent.getClass().getMethod("getHandle").invoke(translatedComponent);
+        } catch (Exception ignored) {
+            Class<?> literalMessage = Class.forName("com.mojang.brigadier.LiteralMessage");
+            return literalMessage.getConstructor(String.class).newInstance(ComponentUtils.componentToString(translated));
+        }
     }
 
     private void handleOpenWindow(PacketEvent packet, SpigotLanguagePlayer languagePlayer) {
