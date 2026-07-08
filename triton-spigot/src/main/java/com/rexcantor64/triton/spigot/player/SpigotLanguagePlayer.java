@@ -183,6 +183,13 @@ public class SpigotLanguagePlayer extends TritonLanguagePlayer<Player> {
         super.refreshAll();
         Triton.get().runAsync(() -> toBukkit().ifPresent(player -> {
             getInterceptor().ifPresent((interceptor) -> {
+                if (Triton.get().getPacketEventsManager() != null) {
+                    if (Triton.get().getConfig().isSigns()) {
+                        interceptor.refreshSigns(this);
+                    }
+                    interceptor.refreshAdvancements(this);
+                    return;
+                }
                 if (!Triton.get().getConfig().getAllowedEntityTypes().isEmpty() || Triton.get().getConfig().isHologramsAll()) {
                     interceptor.refreshEntities(this);
                 }

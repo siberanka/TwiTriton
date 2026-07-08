@@ -79,12 +79,13 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
     private final HandlerFunction ASYNC_PASSTHROUGH = asAsync((_packet, _player) -> {
     });
 
-    private final AdvancementsPacketHandler advancementsPacketHandler = AdvancementsPacketHandler.newInstance();
-    private final BossBarPacketHandler bossBarPacketHandler = new BossBarPacketHandler();
-    private final EntitiesPacketHandler entitiesPacketHandler = new EntitiesPacketHandler();
-    private final SignPacketHandler signPacketHandler = new SignPacketHandler();
+    private final AdvancementsPacketHandler advancementsPacketHandler;
+    private final BossBarPacketHandler bossBarPacketHandler;
+    private final EntitiesPacketHandler entitiesPacketHandler;
+    private final SignPacketHandler signPacketHandler;
 
     private final SpigotTriton main;
+    private final boolean packetEventsPrimary;
     private final List<HandlerFunction.HandlerType> allowedTypes;
     private final Map<PacketType, HandlerFunction> packetHandlers = new HashMap<>();
     private final AtomicBoolean firstRun = new AtomicBoolean(true);
@@ -94,9 +95,15 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
     @Getter
     private ListeningWhitelist receivingWhitelist;
 
-    public ProtocolLibListener(SpigotTriton main, HandlerFunction.HandlerType... allowedTypes) {
+    public ProtocolLibListener(SpigotTriton main, boolean packetEventsPrimary, HandlerFunction.HandlerType... allowedTypes) {
         this.main = main;
+        this.packetEventsPrimary = packetEventsPrimary;
         this.allowedTypes = Arrays.asList(allowedTypes);
+        boolean handlesOutgoingPackets = this.allowedTypes.contains(HandlerFunction.HandlerType.ASYNC);
+        this.advancementsPacketHandler = handlesOutgoingPackets ? AdvancementsPacketHandler.newInstance() : null;
+        this.signPacketHandler = handlesOutgoingPackets ? new SignPacketHandler() : null;
+        this.bossBarPacketHandler = handlesOutgoingPackets && !packetEventsPrimary ? new BossBarPacketHandler() : null;
+        this.entitiesPacketHandler = handlesOutgoingPackets && !packetEventsPrimary ? new EntitiesPacketHandler() : null;
         if (MinecraftVersion.EXPLORATION_UPDATE.atOrAbove()) { // 1.11+
             SIGN_NBT_ID = "minecraft:sign";
         } else {
@@ -139,6 +146,12 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
     }
 
     private void setupPacketHandlers() {
+        if (packetEventsPrimary) {
+            setupPacketEventsFallbackHandlers();
+            setupListenerWhitelists();
+            return;
+        }
+
         if (MinecraftVersion.WILD_UPDATE.atOrAbove()) { // 1.19+
             // New chat packets on 1.19
             packetHandlers.put(PacketType.Play.Server.SYSTEM_CHAT, asAsync(this::handleSystemChat));
@@ -204,11 +217,30 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
         if (advancementsPacketHandler != null) {
             advancementsPacketHandler.registerPacketTypes(packetHandlers);
         }
-        bossBarPacketHandler.registerPacketTypes(packetHandlers);
-        entitiesPacketHandler.registerPacketTypes(packetHandlers);
-        signPacketHandler.registerPacketTypes(packetHandlers);
+        if (bossBarPacketHandler != null) {
+            bossBarPacketHandler.registerPacketTypes(packetHandlers);
+        }
+        if (entitiesPacketHandler != null) {
+            entitiesPacketHandler.registerPacketTypes(packetHandlers);
+        }
+        if (signPacketHandler != null) {
+            signPacketHandler.registerPacketTypes(packetHandlers);
+        }
 
         setupListenerWhitelists();
+    }
+
+    private void setupPacketEventsFallbackHandlers() {
+        if (MinecraftVersion.CAVES_CLIFFS_2.atOrAbove()) { // 1.18+
+            // PacketEvents does not currently translate merchant trade item contents.
+            packetHandlers.put(PacketType.Play.Server.OPEN_WINDOW_MERCHANT, asAsync(this::handleMerchantItems));
+        }
+        if (advancementsPacketHandler != null) {
+            advancementsPacketHandler.registerPacketTypes(packetHandlers);
+        }
+        if (signPacketHandler != null) {
+            signPacketHandler.registerPacketTypes(packetHandlers);
+        }
     }
 
     private void setupListenerWhitelists() {
@@ -1048,11 +1080,15 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
     /* REFRESH */
 
     public void refreshSigns(SpigotLanguagePlayer player) {
-        signPacketHandler.refreshSignsForPlayer(player);
+        if (signPacketHandler != null) {
+            signPacketHandler.refreshSignsForPlayer(player);
+        }
     }
 
     public void refreshEntities(SpigotLanguagePlayer player) {
-        entitiesPacketHandler.refreshEntities(player);
+        if (entitiesPacketHandler != null) {
+            entitiesPacketHandler.refreshEntities(player);
+        }
     }
 
     public void refreshTabHeaderFooter(SpigotLanguagePlayer player, Component header, Component footer) {
@@ -1075,7 +1111,9 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
     }
 
     public void refreshBossbar(SpigotLanguagePlayer player, UUID uuid, String json) {
-        bossBarPacketHandler.refreshBossbar(player, uuid, json);
+        if (bossBarPacketHandler != null) {
+            bossBarPacketHandler.refreshBossbar(player, uuid, json);
+        }
     }
 
     public void refreshScoreboard(SpigotLanguagePlayer player) {

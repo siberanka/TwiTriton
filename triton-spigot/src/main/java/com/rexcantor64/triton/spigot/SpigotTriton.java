@@ -112,7 +112,13 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
                 Bukkit.getPluginManager().disablePlugin(getJavaPlugin());
                 return;
             }
-            this.protocolLibRefresher = ProtocolLibManager.registerProtocolLibListeners();
+            this.protocolLibRefresher = ProtocolLibManager.registerProtocolLibListeners(false);
+        } else if (ProtocolLibManager.isProtocolLibInstalled()) {
+            if (ProtocolLibManager.isProtocolLibAvailable(false)) {
+                this.protocolLibRefresher = ProtocolLibManager.registerProtocolLibListeners(true);
+            } else {
+                getLogger().logWarning("ProtocolLib fallback is unavailable. PacketEvents-supported modules will continue working, but signs and advancements cannot be intercepted.");
+            }
         }
 
         Metrics metrics = new Metrics(getJavaPlugin(), 5606);
