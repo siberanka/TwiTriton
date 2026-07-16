@@ -1,0 +1,88 @@
+# Triton translation JSON guide (English)
+# This YAML file is documentation only. Triton never loads it as a translation collection.
+# If deleted, it is recreated on plugin startup or after /triton reload.
+
+guide:
+  folder: "plugins/Triton/translations"
+  data_files: "Every .json file is loaded; the tutorial YAML files are ignored."
+  json_rules:
+    - "The root may be an items array, or an object containing items and metadata."
+    - "JSON does not allow comments or trailing commas. Language names must match config.yml."
+    - "Every item requires type and a unique key. Supported type values are text and sign."
+
+  text_item:
+    required: "type, key"
+    languages: "Language name -> text map. Only configured languages are loaded."
+    patterns: "Optional regex list, supported only by the legacy parser. Regex groups map to %1, %2, and so on."
+    servers: "Optional server list for proxy or behind-proxy installations."
+    blacklist: "Optional. false enables only listed servers; true enables servers outside the list."
+
+  sign_item:
+    required: "type, key, locations, lines"
+    locations: "Each location has world, x, y, z and an optional server for proxy installations."
+    lines: "Language name -> line array. Modern double-sided signs may use up to eight lines."
+    original_line: "%use_line_default% keeps the original packet line and translates placeholders inside it."
+
+  collection_metadata:
+    servers: "Default server list for the collection. Item-level servers override it."
+    blacklist: "Defaults to true. true means outside the list; false means only inside the list."
+
+  usage:
+    tag: "[lang]economy.balance[/lang]"
+    argument: "[lang]economy.balance[arg]1250[/arg][/lang]"
+    legacy_args_wrapper: "[args]...[/args] remains accepted for compatibility but is unnecessary in v4."
+    placeholderapi: "%triton_economy.balance%"
+    note: "lang and arg can differ per module through its syntax-lang and syntax-arg settings in config.yml."
+
+  text_formats:
+    - "Legacy colors: &a, &l, &#RRGGBB, and similar codes."
+    - "MiniMessage via [minimsg] or auto-detected tags such as <green>, <#RRGGBB>, and <hover:...>."
+    - "Raw Adventure JSON components via [triton_json]."
+    - "Raw nested translations in MiniMessage via <triton:another.key>."
+    - "Ordered arguments through %1, %2, and so on."
+    - "When safe-translations is enabled, unsafe click events are removed from dynamic arguments."
+
+  optional_twin:
+    description: "_twin is Triton TWIN synchronization metadata and is not required in local files."
+    fields: "id, dateCreated, dateUpdated, archived, tags, description"
+    archived: "When true, the item is not loaded."
+
+complete_example: |-
+  {
+    "metadata": {
+      "blacklist": true,
+      "servers": ["maintenance"]
+    },
+    "items": [
+      {
+        "type": "text",
+        "key": "economy.balance",
+        "languages": {
+          "tr_TR": "&6Bakiyen: &e%1 TL",
+          "en_US": "&6Your balance: &e$%1"
+        },
+        "patterns": ["Balance: ([0-9]+)"],
+        "blacklist": false,
+        "servers": ["lobby", "survival"]
+      },
+      {
+        "type": "text",
+        "key": "server.name",
+        "languages": {
+          "tr_TR": "[minimsg]<gradient:#00d4ff:#45ff95><bold>Sunucum</bold></gradient>",
+          "en_US": "[minimsg]<gradient:#00d4ff:#45ff95><bold>My Server</bold></gradient>"
+        }
+      },
+      {
+        "type": "sign",
+        "key": "spawn.help",
+        "locations": [
+          {"server": "lobby", "world": "world", "x": 10, "y": 65, "z": -4}
+        ],
+        "lines": {
+          "tr_TR": ["&aHos geldin", "%use_line_default%", "&e/yardim", "&7yazabilirsin"],
+          "en_US": ["&aWelcome", "%use_line_default%", "&e/help", "&7for commands"]
+        }
+      }
+    ]
+  }

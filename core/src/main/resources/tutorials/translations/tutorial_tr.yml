@@ -1,0 +1,88 @@
+# Triton translation JSON rehberi (Turkce)
+# Bu YAML dosyasi yalnizca dokumantasyondur. Triton bunu ceviri koleksiyonu olarak okumaz.
+# Dosya silinirse plugin baslangicinda veya /triton reload sonrasinda yeniden olusturulur.
+
+rehber:
+  klasor: "plugins/Triton/translations"
+  veri_dosyalari: "Bu klasordeki tum .json dosyalari yuklenir; tutorial YAML dosyalari yok sayilir."
+  json_kurallari:
+    - "Kok deger dogrudan bir items dizisi veya items ve metadata iceren bir nesne olabilir."
+    - "JSON yorum ve sondaki fazla virgul kabul etmez. Dil adlari config.yml ile ayni olmalidir."
+    - "Her ogenin type ve benzersiz key alanlari zorunludur. Desteklenen type degerleri text ve sign'dir."
+
+  text_ogesi:
+    zorunlu: "type, key"
+    languages: "Dil adi -> metin eslemesi. Yalnizca tanimli diller yuklenir."
+    patterns: "Opsiyonel regex listesi; yalnizca legacy parser ile desteklenir. Regex gruplari metindeki %1, %2 ile eslesir."
+    servers: "Opsiyonel sunucu listesi; proxy/behind-proxy kurulumlarinda kullanilir."
+    blacklist: "Opsiyonel. false ise yalnizca servers listesindekilerde, true ise liste disindakilerde etkindir."
+
+  sign_ogesi:
+    zorunlu: "type, key, locations, lines"
+    locations: "Her konum world, x, y, z; proxy kurulumunda opsiyonel server alani tasir."
+    lines: "Dil adi -> satir dizisi. Modern cift yuzlu tabelalarda 8 satira kadar kullanilabilir."
+    varsayilan_satir: "%use_line_default% yazilan satir, paketteki orijinal tabela satirini kullanir ve icindeki placeholderlari cevirir."
+
+  koleksiyon_metadata:
+    servers: "Koleksiyonun varsayilan sunucu listesi. Ogeye ait servers bunu gecersiz kilar."
+    blacklist: "Varsayilan true. true liste disi, false liste ici anlamina gelir."
+
+  kullanim:
+    etiket: "[lang]economy.balance[/lang]"
+    arguman: "[lang]economy.balance[arg]1250[/arg][/lang]"
+    eski_args_sarmali: "[args]...[/args] geriye uyumluluk icin kabul edilir fakat v4'te gerekli degildir."
+    placeholderapi: "%triton_economy.balance%"
+    not: "lang ve arg adlari config.yml icindeki ilgili modulun syntax-lang ve syntax-arg ayarlarina gore degisebilir."
+
+  metin_bicimleri:
+    - "Legacy renkler: &a, &l, &#RRGGBB ve benzerleri."
+    - "MiniMessage: [minimsg] on eki veya <green>, <#RRGGBB>, <hover:...> gibi otomatik algilanan etiketler."
+    - "Ham Adventure JSON component: [triton_json] on eki."
+    - "MiniMessage icinde ham baska ceviri: <triton:baska.anahtar>."
+    - "Metin icinde %1, %2 gibi sirali argumanlar."
+    - "safe-translations acikken dinamik argumanlardaki guvensiz click eventleri temizlenir."
+
+  opsiyonel_twin:
+    aciklama: "_twin Triton TWIN senkronizasyon metadatasidir; yerel dosyada gerekli degildir."
+    alanlar: "id, dateCreated, dateUpdated, archived, tags, description"
+    archived: "true ise oge yuklenmez."
+
+tam_ornek: |-
+  {
+    "metadata": {
+      "blacklist": true,
+      "servers": ["maintenance"]
+    },
+    "items": [
+      {
+        "type": "text",
+        "key": "economy.balance",
+        "languages": {
+          "tr_TR": "&6Bakiyen: &e%1 TL",
+          "en_US": "&6Your balance: &e$%1"
+        },
+        "patterns": ["Balance: ([0-9]+)"],
+        "blacklist": false,
+        "servers": ["lobby", "survival"]
+      },
+      {
+        "type": "text",
+        "key": "server.name",
+        "languages": {
+          "tr_TR": "[minimsg]<gradient:#00d4ff:#45ff95><bold>Sunucum</bold></gradient>",
+          "en_US": "[minimsg]<gradient:#00d4ff:#45ff95><bold>My Server</bold></gradient>"
+        }
+      },
+      {
+        "type": "sign",
+        "key": "spawn.help",
+        "locations": [
+          {"server": "lobby", "world": "world", "x": 10, "y": 65, "z": -4}
+        ],
+        "lines": {
+          "tr_TR": ["&aHos geldin", "%use_line_default%", "&e/yardim", "&7yazabilirsin"],
+          "en_US": ["&aWelcome", "%use_line_default%", "&e/help", "&7for commands"]
+        }
+      }
+    ]
+  }

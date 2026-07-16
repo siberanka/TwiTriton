@@ -1,0 +1,91 @@
+# Triton platform JSON guide (English)
+# This YAML file is documentation only. Triton never loads it as platform data.
+# If deleted, it is recreated on plugin startup or after /triton reload.
+
+guide:
+  folder: "plugins/Triton/platforms"
+  data_files: "Every .json file in this folder is loaded, not only default.json."
+  important_rules:
+    - "Put real data in .json files. tutorial_tr.yml and tutorial_en.yml have no runtime effect."
+    - "JSON does not allow comments, trailing commas, or duplicate keys in the same object."
+    - "type must be platform and key must be a unique text key."
+    - "java and bedrock are optional, but at least one must contain a valid value."
+
+  usage:
+    tag: "[plat]rank.youtuber[/plat]"
+    argument: "[plat]welcome[arg]Player[/arg][/plat]"
+    placeholderapi: "%triton_plat_rank.youtuber%"
+    note: "plat and arg can be changed with syntax-lang and syntax-arg under config.yml > platform-variants."
+
+  value_forms:
+    legacy_string: "A java or bedrock value can be one string shared by every language."
+    localized_object: "A java or bedrock value can be an object keyed by language names from config.yml."
+    default_language: "A localized object may contain an optional default key as its last language fallback."
+    mixed: "For example, java may be localized while bedrock remains a shared string."
+
+  fallback_order:
+    - "The player's selected language, such as en_US."
+    - "The selected language's fallback-languages from config.yml, in order."
+    - "The main-language from config.yml."
+    - "The optional default entry in the localized object."
+    - "If the selected platform has no result, the same order is tried on the other platform."
+    - "If nothing resolves, Triton's normal missing-translation behavior is used."
+
+  supported_content:
+    - "Legacy colors and formatting: &a, &l, &#RRGGBB, and similar codes."
+    - "MiniMessage via [minimsg] or auto-detected tags such as <green>, <#RRGGBB>, and <image:...>."
+    - "Adventure JSON components via [triton_json]."
+    - "Arguments: %1, %2, and so on are filled by [arg]...[/arg] in order."
+    - "Nested translations: [lang]another.key[/lang] may be used inside platform values."
+    - "Security: safe-translations strips unsafe click events from untrusted arguments when enabled."
+
+  optional_twin:
+    description: "_twin is Triton TWIN synchronization metadata and is not required in hand-written local files."
+    fields: "id, dateCreated, dateUpdated, archived, tags, description"
+    archived: "When true, the item is not loaded."
+
+legacy_format_example: |-
+  {
+    "items": [
+      {
+        "type": "platform",
+        "key": "rank.youtuber",
+        "variants": {
+          "java": "[minimsg]<!shadow><white><image:wellsetups_ranks:youtuber></white></!shadow>",
+          "bedrock": "[minimsg]<#ff3030><bold>YOUTUBER</bold>"
+        }
+      }
+    ]
+  }
+
+localized_format_example: |-
+  {
+    "items": [
+      {
+        "type": "platform",
+        "key": "rank.youtuber",
+        "variants": {
+          "java": {
+            "tr_TR": "[minimsg]<!shadow><white><image:wellsetups_ranks:youtuber></white></!shadow>",
+            "en_US": "[minimsg]<!shadow><white><image:wellsetups_ranks:youtuber_en></white></!shadow>",
+            "default": "[minimsg]<white><bold>YOUTUBER</bold>"
+          },
+          "bedrock": {
+            "tr_TR": "[minimsg]<#ff3030><bold>YAYINCI</bold>",
+            "en_US": "[minimsg]<#ff3030><bold>YOUTUBER</bold>"
+          }
+        }
+      },
+      {
+        "type": "platform",
+        "key": "welcome",
+        "variants": {
+          "java": {
+            "tr_TR": "&aHos geldin, %1! [lang]server.name[/lang]",
+            "en_US": "&aWelcome, %1! [lang]server.name[/lang]"
+          },
+          "bedrock": "&bWelcome to the server, %1!"
+        }
+      }
+    ]
+  }

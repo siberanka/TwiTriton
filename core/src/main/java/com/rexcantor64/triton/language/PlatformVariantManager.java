@@ -2,6 +2,8 @@ package com.rexcantor64.triton.language;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonParseException;
 import com.google.gson.reflect.TypeToken;
 import com.rexcantor64.triton.Triton;
@@ -22,6 +24,7 @@ import org.jetbrains.annotations.NotNull;
 import java.io.File;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -67,6 +70,9 @@ public class PlatformVariantManager {
         }
 
         for (File file : files) {
+            if (TutorialFileManager.isTutorialFile(file)) {
+                continue;
+            }
             if (!file.getName().endsWith(".json")) {
                 this.triton.getLogger().logWarning("Did not load file %1 because it is not a JSON file.", file.getName());
                 continue;
@@ -78,7 +84,14 @@ public class PlatformVariantManager {
                     continue;
                 }
                 for (PlatformText item : collection.getItems()) {
-                    if (item == null || item.getKey() == null || item.getKey().isEmpty() || item.isArchived()) {
+                    if (item == null || item.getKey() == null || item.getKey().isEmpty() || item.isArchived()
+                            || !"platform".equalsIgnoreCase(item.getType())) {
+                        continue;
+                    }
+                    if (!item.normalizeVariants()) {
+                        this.triton.getLogger().logWarning(
+                                "Did not load platform variant '%1' from %2 because it has no valid Java or Bedrock values.",
+                                item.getKey(), file.getName());
                         continue;
                     }
                     this.items.put(item.getKey(), item);
@@ -99,17 +112,17 @@ public class PlatformVariantManager {
         }
 
         String platform = getPlatformKey(localized);
-        String value = item.getVariants().get(platform);
-        if (value == null && platform.equals("bedrock")) {
-            value = item.getVariants().get("java");
+        com.rexcantor64.triton.api.language.Language language = localized.getLanguage();
+        com.rexcantor64.triton.api.language.Language mainLanguage =
+                this.triton.getLanguageManager().getMainLanguage();
+
+        Optional<String> value = item.resolve(platform, language, mainLanguage);
+        if (value.isPresent()) {
+            return value;
         }
-        if (value == null && platform.equals("java")) {
-            value = item.getVariants().get("bedrock");
-        }
-        if (value == null) {
-            return Optional.empty();
-        }
-        return Optional.of(value);
+
+        String fallbackPlatform = platform.equals("bedrock") ? "java" : "bedrock";
+        return item.resolve(fallbackPlatform, language, mainLanguage);
     }
 
     public @NotNull Component getTextComponentOr404(@NotNull Localized localized,
@@ -154,7 +167,7 @@ public class PlatformVariantManager {
         return "java";
     }
 
-    private static String sanitizeFolderName(String folderName) {
+    static String sanitizeFolderName(String folderName) {
         if (folderName == null || folderName.trim().isEmpty()) {
             return "platforms";
         }
@@ -176,8 +189,8 @@ public class PlatformVariantManager {
         PlatformCollection collection = new PlatformCollection();
         PlatformText sample = new PlatformText();
         sample.setKey("example.variant");
-        sample.getVariants().put("java", "&aJava player text with %1.");
-        sample.getVariants().put("bedrock", "&bBedrock player text with %1.");
+        sample.getVariants().put("java", new JsonPrimitive("&aJava player text with %1."));
+        sample.getVariants().put("bedrock", new JsonPrimitive("&bBedrock player text with %1."));
         collection.getItems().add(sample);
 
         File sampleFile = new File(folder, "default.json");
@@ -200,20 +213,39 @@ public class PlatformVariantManager {
     private static class PlatformText {
         private String key;
         private String type = "platform";
-        private HashMap<String, String> variants = new HashMap<>();
+        private HashMap<String, JsonElement> variants = new HashMap<>();
         private TWINData _twin = null;
+        private transient Map<String, PlatformVariantValue> normalizedVariants = Collections.emptyMap();
 
-        public HashMap<String, String> getVariants() {
-            HashMap<String, String> normalized = new HashMap<>();
+        private boolean normalizeVariants() {
+            HashMap<String, PlatformVariantValue> normalized = new HashMap<>();
             if (variants == null) {
-                return normalized;
+                this.normalizedVariants = normalized;
+                return false;
             }
-            for (Map.Entry<String, String> entry : variants.entrySet()) {
-                if (entry.getKey() != null) {
-                    normalized.put(entry.getKey().toLowerCase(Locale.ROOT), entry.getValue());
+            for (Map.Entry<String, JsonElement> entry : variants.entrySet()) {
+                if (entry.getKey() == null) {
+                    continue;
                 }
+                String platform = entry.getKey().trim().toLowerCase(Locale.ROOT);
+                if (!platform.equals("java") && !platform.equals("bedrock")) {
+                    continue;
+                }
+                PlatformVariantValue.fromJson(entry.getValue()).ifPresent(value ->
+                        normalized.put(platform, value));
             }
-            return normalized;
+            this.normalizedVariants = Collections.unmodifiableMap(normalized);
+            return !normalized.isEmpty();
+        }
+
+        private Optional<String> resolve(String platform,
+                                         com.rexcantor64.triton.api.language.Language language,
+                                         com.rexcantor64.triton.api.language.Language mainLanguage) {
+            PlatformVariantValue value = this.normalizedVariants.get(platform);
+            if (value == null) {
+                return Optional.empty();
+            }
+            return value.resolve(language, mainLanguage);
         }
 
         private boolean isArchived() {

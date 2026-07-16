@@ -15,6 +15,7 @@ import com.rexcantor64.triton.dependencies.Dependency;
 import com.rexcantor64.triton.language.LanguageManager;
 import com.rexcantor64.triton.language.PlatformVariantManager;
 import com.rexcantor64.triton.language.TranslationManager;
+import com.rexcantor64.triton.language.TutorialFileManager;
 import com.rexcantor64.triton.language.parser.AdventureParser;
 import com.rexcantor64.triton.language.parser.LegacyParser;
 import com.rexcantor64.triton.language.parser.MessageParser;
@@ -174,6 +175,7 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
         languageManager.setup();
         translationManager.setup();
         platformVariantManager.setup();
+        TutorialFileManager.ensureTutorials(this);
         if (this.packetEventsManager != null) {
             this.packetEventsManager.onReload();
         }
@@ -273,7 +275,8 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
 
                 if (!hasPlatformVariants) {
                     linesToAdd.add("");
-                    linesToAdd.add("# Java/Bedrock-specific placeholders. These are loaded from platforms/default.json by default.");
+                    linesToAdd.add("# Java/Bedrock-specific placeholders. Every JSON file in the configured folder is loaded.");
+                    linesToAdd.add("# Each platform value may be a shared string or an object keyed by configured language names.");
                     linesToAdd.add("# Usage: [plat]example.key[/plat] or %triton_plat_example.key%.");
                     linesToAdd.add("platform-variants:");
                     linesToAdd.add("  enabled: true");

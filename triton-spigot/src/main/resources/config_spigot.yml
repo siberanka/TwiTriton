@@ -157,7 +157,8 @@ default-translation-type: "legacy"
 # translation template did not contain any click actions.
 safe-translations: true
 
-# Java/Bedrock-specific placeholders. These are loaded from platforms/default.json by default.
+# Java/Bedrock-specific placeholders. Every JSON file in the configured folder is loaded.
+# Each platform value may be a shared string or an object keyed by configured language names.
 # Usage: [plat]example.key[/plat] or %triton_plat_example.key%.
 platform-variants:
   enabled: true

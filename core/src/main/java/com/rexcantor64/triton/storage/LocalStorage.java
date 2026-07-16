@@ -10,6 +10,7 @@ import com.rexcantor64.triton.language.item.Collection;
 import com.rexcantor64.triton.language.item.LanguageItem;
 import com.rexcantor64.triton.language.item.LanguageText;
 import com.rexcantor64.triton.language.item.serializers.CollectionSerializer;
+import com.rexcantor64.triton.language.TutorialFileManager;
 import com.rexcantor64.triton.player.TritonLanguagePlayer;
 import com.rexcantor64.triton.utils.FileUtils;
 import lombok.Cleanup;
@@ -237,6 +238,9 @@ public class LocalStorage extends Storage {
             val colFiles = translationsFolder.listFiles();
             if (colFiles != null) {
                 for (val colFile : colFiles) {
+                    if (TutorialFileManager.isTutorialFile(colFile)) {
+                        continue;
+                    }
                     try {
                         if (colFile.getName().endsWith(".json")) {
                             collections.put(colFile.getName().substring(0, colFile.getName().length() - 5),

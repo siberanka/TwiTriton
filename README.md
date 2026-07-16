@@ -118,6 +118,9 @@ Triton can send different text to Java Edition and Bedrock Edition players witho
 - **Storage**: Platform variants are loaded from the folder configured under `platform-variants.folder`, which defaults to `platforms`. Every `.json` file in that folder is loaded, not only `default.json`.
 - **Usage**: Use `[plat]example.variant[/plat]`, `[plat]example.variant[arg]value[/arg][/plat]`, or `%triton_plat_example.variant%`.
 - **Formatting**: Variant values support the same formatting pipeline as translations, including legacy colors, MiniMessage auto-detection, `[minimsg]`, `[triton_json]`, arguments, nested `[lang]key[/lang]` placeholders, and safe-translation protections.
+- **Localized Variants**: `java` and `bedrock` may remain shared strings or become objects keyed by configured language names. Both forms may be mixed in one item.
+- **Fallbacks**: Localized values resolve through the selected language, its configured fallback languages, the main language, an optional `default` value, and then the other platform.
+- **Tutorials**: `tutorial_en.yml` and `tutorial_tr.yml` are recreated in both `translations` and `platforms` when missing. They document every JSON option and are never loaded as data.
 
 Example `plugins/Triton/platforms/default.json`:
 
@@ -128,7 +131,11 @@ Example `plugins/Triton/platforms/default.json`:
       "type": "platform",
       "key": "example.variant",
       "variants": {
-        "java": "&aJava player text with %1.",
+        "java": {
+          "tr_TR": "&aJava oyuncusu icin Turkce metin: %1.",
+          "en_US": "&aEnglish text for a Java player: %1.",
+          "default": "&aJava player text: %1."
+        },
         "bedrock": "&bBedrock player text with %1."
       }
     }
@@ -231,3 +238,32 @@ Triton, Geyser veya Floodgate aracılığıyla bağlanan Bedrock Edition oyuncul
 - **Form Yakalama (Interception)**: Geyser ve Floodgate'in özel GUI Formları (SimpleForm, CustomForm, ModalForm), standart Java Edition paket yakalama işlemlerini bypass eder. Triton, form gönderimlerini anlık olarak yakalamak için `GeyserApi` ve `FloodgateApi` sınıflarına çalışma zamanında (runtime) yansıma (reflection) tabanlı dinamik proxyler enjekte eder.
 - **Rekürsif Çeviri**: Form başlıkları, içerik yazıları, buton isimleri, girdi alanları (input placeholders) ve açılır menü seçenekleri gibi tüm metin öğeleri otomatik olarak taranır ve oyuncunun seçtiği dile göre Triton çeviri formatları (`[lang]anahtar[/lang]`) kullanılarak rekürsif (iç içe) olarak çevrilir.
 - **Otomatik Entegrasyon**: Herhangi bir ek ayar gerektirmez. Geyser veya Floodgate sunucuda algılandığında çeviri köprüsü otomatik olarak devreye girer.
+
+### Java/Bedrock Platform Varyantları
+
+Triton, oyuncunun seçili dilini değiştirmeden Java ve Bedrock oyuncularına farklı metin gönderebilir.
+- **Depolama**: Platform varyantları varsayılan olarak `platforms` klasöründeki tüm `.json` dosyalarından yüklenir.
+- **Kullanım**: `[plat]example.variant[/plat]`, `[plat]example.variant[arg]değer[/arg][/plat]` veya `%triton_plat_example.variant%` kullanın.
+- **Çoklu Dil**: `java` ve `bedrock` doğrudan ortak bir string olabilir ya da `tr_TR`, `en_US` gibi config dil adlarını içeren nesneler olabilir. İki biçim aynı öğede birlikte kullanılabilir.
+- **Fallback**: Seçili dil, dilin `fallback-languages` listesi, ana dil, opsiyonel `default` ve ardından diğer platform sırasıyla denenir.
+- **Biçimlendirme**: Legacy renkler, MiniMessage, `[minimsg]`, `[triton_json]`, argümanlar, iç içe `[lang]` çevirileri ve güvenli çeviri kontrolleri desteklenir.
+- **Tutorial Dosyaları**: `translations` ve `platforms` klasörlerindeki `tutorial_tr.yml` ile `tutorial_en.yml` eksikse yeniden oluşturulur ve hiçbir zaman veri olarak okunmaz.
+
+```json
+{
+  "items": [
+    {
+      "type": "platform",
+      "key": "rank.youtuber",
+      "variants": {
+        "java": {
+          "tr_TR": "[minimsg]<green><bold>YAYINCI</bold>",
+          "en_US": "[minimsg]<green><bold>YOUTUBER</bold>",
+          "default": "&aYOUTUBER"
+        },
+        "bedrock": "[minimsg]<#ff3030><bold>YOUTUBER</bold>"
+      }
+    }
+  ]
+}
+```
