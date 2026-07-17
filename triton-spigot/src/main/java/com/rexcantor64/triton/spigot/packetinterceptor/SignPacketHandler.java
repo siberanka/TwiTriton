@@ -26,6 +26,8 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.rexcantor64.triton.spigot.packetinterceptor.HandlerFunction.asAsync;
@@ -184,7 +186,7 @@ public class SignPacketHandler extends PacketHandler {
         val defaultLinesWrapped = linesModifier.readSafely(0);
 
         val location = new SignLocation(packet.getPlayer().getWorld().getName(), pos.getX(), pos.getY(), pos.getZ());
-        val lines = getTranslationManager().getSignComponents(languagePlayer, location, () -> {
+        val lines = translateSignLines(languagePlayer, location, () -> {
             val defaultLines = new Component[4];
             for (int i = 0; i < 4; i++) {
                 try {
@@ -237,11 +239,37 @@ public class SignPacketHandler extends PacketHandler {
         }));
 
         player.getLegacySigns().forEach(((signLocation, lines) -> {
-            val resultLines = getTranslationManager().getSignComponents(player, signLocation, () -> lines);
+            val resultLines = translateSignLines(player, signLocation, () -> lines);
 
             PacketContainer packet = buildUpdateSignPacket(signLocation, resultLines.orElse(lines));
             ProtocolLibrary.getProtocolManager().sendServerPacket(bukkitPlayer, packet, false);
         }));
+    }
+
+    private Optional<Component[]> translateSignLines(SpigotLanguagePlayer player, SignLocation location,
+                                                     Supplier<Component[]> defaultLinesSupplier) {
+        val signLines = getTranslationManager().getSignComponents(player, location, defaultLinesSupplier);
+        if (signLines.isPresent()) {
+            return signLines;
+        }
+
+        val defaultLines = defaultLinesSupplier.get();
+        val translatedLines = new Component[defaultLines.length];
+        boolean changed = false;
+
+        for (int i = 0; i < defaultLines.length; i++) {
+            val originalLine = defaultLines[i] == null ? Component.empty() : defaultLines[i];
+            val result = getMain().getMessageParser().translateComponent(
+                    originalLine,
+                    player,
+                    getMain().getConfig().getSignsSyntax()
+            );
+
+            translatedLines[i] = result.getResultOrToRemove(Component::empty).orElse(originalLine);
+            changed |= !result.isUnchanged();
+        }
+
+        return changed ? Optional.of(translatedLines) : Optional.empty();
     }
 
     /**
@@ -341,7 +369,7 @@ public class SignPacketHandler extends PacketHandler {
     @Deprecated
     private boolean translateSignNbtCompoundPre1_20(NbtCompound compound, SignLocation location, SpigotLanguagePlayer player,
                                                     boolean saveToCache, @Nullable MinecraftKey typeKey) {
-        val sign = getTranslationManager().getSignComponents(player, location, () -> {
+        val sign = translateSignLines(player, location, () -> {
             val defaultLines = new Component[4];
             for (int i = 0; i < 4; i++) {
                 try {
@@ -376,7 +404,7 @@ public class SignPacketHandler extends PacketHandler {
      */
     private boolean translateSignNbtCompoundPost1_20(NbtCompound compound, SignLocation location, SpigotLanguagePlayer player,
                                                      boolean saveToCache, @Nullable MinecraftKey typeKey) {
-        val sign = getTranslationManager().getSignComponents(player, location, () -> {
+        val sign = translateSignLines(player, location, () -> {
             val defaultLines = new Component[8];
             val frontText = compound.getCompound("front_text");
             if (MinecraftVersion.v1_21_5.atOrAbove()) {

@@ -130,9 +130,14 @@ public class BungeeLanguagePlayer extends TritonLanguagePlayer<ProxiedPlayer> {
     }
 
     public void setLang(Language language, boolean sendToSpigot) {
-        PlayerChangeLanguageBungeeEvent event = new PlayerChangeLanguageBungeeEvent(this, this.language, language);
+        Language oldLang = this.language;
+        this.language = language;
+        PlayerChangeLanguageBungeeEvent event = new PlayerChangeLanguageBungeeEvent(this, oldLang, language);
         BungeeCord.getInstance().getPluginManager().callEvent(event);
-        if (event.isCancelled()) return;
+        if (event.isCancelled()) {
+            this.language = oldLang;
+            return;
+        }
         this.language = event.getNewLanguage();
         if (this.waitingForClientLocale && getParent() != null)
             parent.sendMessage(BaseComponentUtils.serialize(Triton.get().getMessagesConfig()
@@ -249,6 +254,24 @@ public class BungeeLanguagePlayer extends TritonLanguagePlayer<ProxiedPlayer> {
         private Either<String, Team.CollisionRule> collisionRule;
         private int color;
         private byte options;
+    }
+
+    @Override
+    public void sendSuccessMessage(com.rexcantor64.triton.api.language.Language lang) {
+        if (getParent() != null) {
+            try {
+                getParent().sendMessage(com.rexcantor64.triton.bungeecord.utils.BaseComponentUtils.serialize(
+                        Triton.get().getMessagesConfig().getMessageComponent("success.selector", ((com.rexcantor64.triton.language.Language) lang).getDisplayNameComponent())
+                ));
+            } catch (Throwable t) {
+                Triton.get().getLogger().logError(t, "Failed to send success message to Bungee player");
+            }
+        }
+    }
+
+    @Override
+    public void runSync(Runnable runnable) {
+        net.md_5.bungee.api.ProxyServer.getInstance().getScheduler().runAsync(BungeeTriton.asBungee().getPlugin(), runnable);
     }
 
     @Override

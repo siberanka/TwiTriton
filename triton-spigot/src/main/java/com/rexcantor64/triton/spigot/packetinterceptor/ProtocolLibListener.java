@@ -25,6 +25,7 @@ import com.comphenix.protocol.wrappers.nbt.NbtFactory;
 import com.rexcantor64.triton.Triton;
 import com.rexcantor64.triton.language.item.SignLocation;
 import com.rexcantor64.triton.language.parser.MessageParser;
+import com.rexcantor64.triton.language.parser.TranslationResult;
 import com.rexcantor64.triton.spigot.SpigotTriton;
 import com.rexcantor64.triton.spigot.player.SpigotLanguagePlayer;
 import com.rexcantor64.triton.spigot.utils.BaseComponentUtils;
@@ -52,6 +53,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.MerchantRecipe;
 import org.bukkit.plugin.Plugin;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -77,12 +80,13 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
     private final HandlerFunction ASYNC_PASSTHROUGH = asAsync((_packet, _player) -> {
     });
 
-    private final AdvancementsPacketHandler advancementsPacketHandler = AdvancementsPacketHandler.newInstance();
-    private final BossBarPacketHandler bossBarPacketHandler = new BossBarPacketHandler();
-    private final EntitiesPacketHandler entitiesPacketHandler = new EntitiesPacketHandler();
-    private final SignPacketHandler signPacketHandler = new SignPacketHandler();
+    private final AdvancementsPacketHandler advancementsPacketHandler;
+    private final BossBarPacketHandler bossBarPacketHandler;
+    private final EntitiesPacketHandler entitiesPacketHandler;
+    private final SignPacketHandler signPacketHandler;
 
     private final SpigotTriton main;
+    private final boolean packetEventsPrimary;
     private final List<HandlerFunction.HandlerType> allowedTypes;
     private final Map<PacketType, HandlerFunction> packetHandlers = new HashMap<>();
     private final AtomicBoolean firstRun = new AtomicBoolean(true);
@@ -92,9 +96,15 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
     @Getter
     private ListeningWhitelist receivingWhitelist;
 
-    public ProtocolLibListener(SpigotTriton main, HandlerFunction.HandlerType... allowedTypes) {
+    public ProtocolLibListener(SpigotTriton main, boolean packetEventsPrimary, HandlerFunction.HandlerType... allowedTypes) {
         this.main = main;
+        this.packetEventsPrimary = packetEventsPrimary;
         this.allowedTypes = Arrays.asList(allowedTypes);
+        boolean handlesOutgoingPackets = this.allowedTypes.contains(HandlerFunction.HandlerType.ASYNC);
+        this.advancementsPacketHandler = handlesOutgoingPackets ? AdvancementsPacketHandler.newInstance() : null;
+        this.signPacketHandler = handlesOutgoingPackets ? new SignPacketHandler() : null;
+        this.bossBarPacketHandler = handlesOutgoingPackets && !packetEventsPrimary ? new BossBarPacketHandler() : null;
+        this.entitiesPacketHandler = handlesOutgoingPackets && !packetEventsPrimary ? new EntitiesPacketHandler() : null;
         if (MinecraftVersion.EXPLORATION_UPDATE.atOrAbove()) { // 1.11+
             SIGN_NBT_ID = "minecraft:sign";
         } else {
@@ -137,6 +147,12 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
     }
 
     private void setupPacketHandlers() {
+        if (packetEventsPrimary) {
+            setupPacketEventsFallbackHandlers();
+            setupListenerWhitelists();
+            return;
+        }
+
         if (MinecraftVersion.WILD_UPDATE.atOrAbove()) { // 1.19+
             // New chat packets on 1.19
             packetHandlers.put(PacketType.Play.Server.SYSTEM_CHAT, asAsync(this::handleSystemChat));
@@ -170,6 +186,7 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
         packetHandlers.put(PacketType.Play.Server.PLAYER_LIST_HEADER_FOOTER, asAsync(this::handlePlayerListHeaderFooter));
         packetHandlers.put(PacketType.Play.Server.OPEN_WINDOW, asAsync(this::handleOpenWindow));
         packetHandlers.put(PacketType.Play.Server.KICK_DISCONNECT, asSync(this::handleKickDisconnect));
+        packetHandlers.put(PacketType.Play.Server.TAB_COMPLETE, asAsync(this::handleTabComplete));
         if (MinecraftVersion.AQUATIC_UPDATE.atOrAbove()) { // 1.13+
             // Scoreboard rewrite on 1.13
             // It allows unlimited length team prefixes and suffixes
@@ -201,11 +218,30 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
         if (advancementsPacketHandler != null) {
             advancementsPacketHandler.registerPacketTypes(packetHandlers);
         }
-        bossBarPacketHandler.registerPacketTypes(packetHandlers);
-        entitiesPacketHandler.registerPacketTypes(packetHandlers);
-        signPacketHandler.registerPacketTypes(packetHandlers);
+        if (bossBarPacketHandler != null) {
+            bossBarPacketHandler.registerPacketTypes(packetHandlers);
+        }
+        if (entitiesPacketHandler != null) {
+            entitiesPacketHandler.registerPacketTypes(packetHandlers);
+        }
+        if (signPacketHandler != null) {
+            signPacketHandler.registerPacketTypes(packetHandlers);
+        }
 
         setupListenerWhitelists();
+    }
+
+    private void setupPacketEventsFallbackHandlers() {
+        if (MinecraftVersion.CAVES_CLIFFS_2.atOrAbove()) { // 1.18+
+            // PacketEvents does not currently translate merchant trade item contents.
+            packetHandlers.put(PacketType.Play.Server.OPEN_WINDOW_MERCHANT, asAsync(this::handleMerchantItems));
+        }
+        if (advancementsPacketHandler != null) {
+            advancementsPacketHandler.registerPacketTypes(packetHandlers);
+        }
+        if (signPacketHandler != null) {
+            signPacketHandler.registerPacketTypes(packetHandlers);
+        }
     }
 
     private void setupListenerWhitelists() {
@@ -289,7 +325,10 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
                 .translateComponent(
                         message,
                         languagePlayer,
-                        ab ? main.getConfig().getActionbarSyntax() : main.getConfig().getChatSyntax()
+                        com.rexcantor64.triton.api.config.FeatureSyntax.withSafeTranslations(
+                                ab ? main.getConfig().getActionbarSyntax() : main.getConfig().getChatSyntax(),
+                                isSafeChat(packet.getPacket())
+                        )
                 )
                 .ifChanged(result -> {
                     if (adventureModifier.size() > 0) {
@@ -359,7 +398,10 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
                 .translateComponent(
                         message,
                         languagePlayer,
-                        ab ? main.getConfig().getActionbarSyntax() : main.getConfig().getChatSyntax()
+                        com.rexcantor64.triton.api.config.FeatureSyntax.withSafeTranslations(
+                                ab ? main.getConfig().getActionbarSyntax() : main.getConfig().getChatSyntax(),
+                                false
+                        )
                 )
                 .ifChanged(result -> {
                     if (adventureModifier.size() > 0) {
@@ -572,6 +614,120 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
 
         languagePlayer.setLastTabHeader(header);
         languagePlayer.setLastTabFooter(footer);
+    }
+
+    private void handleTabComplete(PacketEvent packet, SpigotLanguagePlayer languagePlayer) {
+        if (!main.getConfig().isChat()) return;
+
+        val modifier = packet.getPacket().getModifier();
+        for (int i = 0; i < modifier.size(); i++) {
+            Object value = modifier.readSafely(i);
+            if (value == null || !value.getClass().getName().equals("com.mojang.brigadier.suggestion.Suggestions")) {
+                continue;
+            }
+
+            int fieldIndex = i;
+            Optional<Object> translatedSuggestions = translateCommandSuggestions(value, languagePlayer);
+            translatedSuggestions.ifPresent(suggestions -> modifier.writeSafely(fieldIndex, suggestions));
+            return;
+        }
+    }
+
+    private Optional<Object> translateCommandSuggestions(Object suggestions, SpigotLanguagePlayer languagePlayer) {
+        try {
+            Method getRange = suggestions.getClass().getMethod("getRange");
+            Method getList = suggestions.getClass().getMethod("getList");
+            List<?> originalList = (List<?>) getList.invoke(suggestions);
+            List<Object> translatedList = new ArrayList<>(originalList.size());
+            boolean changed = false;
+
+            for (Object suggestion : originalList) {
+                Optional<Object> translatedSuggestion = translateCommandSuggestion(suggestion, languagePlayer);
+                if (translatedSuggestion.isPresent()) {
+                    translatedList.add(translatedSuggestion.get());
+                    changed = true;
+                } else {
+                    translatedList.add(suggestion);
+                }
+            }
+
+            if (!changed) {
+                return Optional.empty();
+            }
+
+            Constructor<?> constructor = suggestions.getClass().getConstructor(
+                    Class.forName("com.mojang.brigadier.context.StringRange"),
+                    List.class
+            );
+            return Optional.of(constructor.newInstance(getRange.invoke(suggestions), translatedList));
+        } catch (Exception e) {
+            Triton.get().getLogger().logTrace("Could not translate command suggestion tooltips: %1", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    private Optional<Object> translateCommandSuggestion(Object suggestion, SpigotLanguagePlayer languagePlayer) {
+        try {
+            Method getTooltip = suggestion.getClass().getMethod("getTooltip");
+            Object tooltip = getTooltip.invoke(suggestion);
+            if (tooltip == null) {
+                return Optional.empty();
+            }
+
+            Optional<Component> tooltipComponent = deserializeSuggestionTooltip(tooltip);
+            if (!tooltipComponent.isPresent()) {
+                return Optional.empty();
+            }
+
+            TranslationResult<Component> result = parser()
+                    .translateComponent(tooltipComponent.get(), languagePlayer, main.getConfig().getChatSyntax());
+            if (result.isUnchanged()) {
+                return Optional.empty();
+            }
+
+            Component translated = result.isToRemove() ? Component.empty() : result.getResultRaw();
+            Object translatedTooltip = serializeSuggestionTooltip(translated, tooltip);
+
+            Constructor<?> constructor = suggestion.getClass().getConstructor(
+                    Class.forName("com.mojang.brigadier.context.StringRange"),
+                    String.class,
+                    Class.forName("com.mojang.brigadier.Message")
+            );
+            return Optional.of(constructor.newInstance(
+                    suggestion.getClass().getMethod("getRange").invoke(suggestion),
+                    suggestion.getClass().getMethod("getText").invoke(suggestion),
+                    translatedTooltip
+            ));
+        } catch (Exception e) {
+            Triton.get().getLogger().logTrace("Could not translate a command suggestion tooltip: %1", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    private Optional<Component> deserializeSuggestionTooltip(Object tooltip) {
+        try {
+            return Optional.of(WrappedComponentUtils.deserialize(WrappedChatComponent.fromHandle(tooltip)));
+        } catch (Exception ignored) {
+            // Brigadier can also use plain LiteralMessage tooltips.
+        }
+
+        try {
+            Method getString = tooltip.getClass().getMethod("getString");
+            return Optional.of(Component.text((String) getString.invoke(tooltip)));
+        } catch (Exception e) {
+            return Optional.empty();
+        }
+    }
+
+    private Object serializeSuggestionTooltip(Component translated, Object originalTooltip) throws Exception {
+        try {
+            WrappedChatComponent.fromHandle(originalTooltip);
+            WrappedChatComponent translatedComponent = WrappedComponentUtils.serialize(translated);
+            return translatedComponent.getClass().getMethod("getHandle").invoke(translatedComponent);
+        } catch (Exception ignored) {
+            Class<?> literalMessage = Class.forName("com.mojang.brigadier.LiteralMessage");
+            return literalMessage.getConstructor(String.class).newInstance(ComponentUtils.componentToString(translated));
+        }
     }
 
     private void handleOpenWindow(PacketEvent packet, SpigotLanguagePlayer languagePlayer) {
@@ -926,11 +1082,15 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
     /* REFRESH */
 
     public void refreshSigns(SpigotLanguagePlayer player) {
-        signPacketHandler.refreshSignsForPlayer(player);
+        if (signPacketHandler != null) {
+            signPacketHandler.refreshSignsForPlayer(player);
+        }
     }
 
     public void refreshEntities(SpigotLanguagePlayer player) {
-        entitiesPacketHandler.refreshEntities(player);
+        if (entitiesPacketHandler != null) {
+            entitiesPacketHandler.refreshEntities(player);
+        }
     }
 
     public void refreshTabHeaderFooter(SpigotLanguagePlayer player, Component header, Component footer) {
@@ -953,7 +1113,9 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
     }
 
     public void refreshBossbar(SpigotLanguagePlayer player, UUID uuid, String json) {
-        bossBarPacketHandler.refreshBossbar(player, uuid, json);
+        if (bossBarPacketHandler != null) {
+            bossBarPacketHandler.refreshBossbar(player, uuid, json);
+        }
     }
 
     public void refreshScoreboard(SpigotLanguagePlayer player) {
@@ -1043,6 +1205,20 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
             return container.getChatTypes().readSafely(0) == EnumWrappers.ChatType.GAME_INFO;
         } else {
             return container.getBytes().readSafely(0) == 2;
+        }
+    }
+
+    private boolean isSafeChat(PacketContainer container) {
+        if (MinecraftVersion.WILD_UPDATE.atOrAbove()) {
+            return true;
+        }
+        if (isActionbar(container)) {
+            return false;
+        }
+        if (MinecraftVersion.COLOR_UPDATE.atOrAbove()) {
+            return container.getChatTypes().readSafely(0) == EnumWrappers.ChatType.CHAT;
+        } else {
+            return container.getBytes().readSafely(0) == 0;
         }
     }
 

@@ -104,8 +104,14 @@ public class MainConfig implements TritonConfig {
     private int maxPlaceholdersInMessage;
     private boolean asyncProtocolLib;
     private boolean usePacketEvents;
+    private String defaultTranslationType = "legacy";
+    private boolean safeTranslations = true;
+    private boolean platformVariants = true;
+    private String platformVariantsFolder = "platforms";
+    private FeatureSyntax platformVariantsSyntax = new FeatureSyntax("plat", "args", "arg");
 
     private String storageType = "local";
+
     private String serverName;
     @ToString.Exclude
     @GsonExclude
@@ -197,6 +203,18 @@ public class MainConfig implements TritonConfig {
         this.asyncProtocolLib = section.getBoolean("experimental-async-protocol-lib", false);
         this.usePacketEvents = section.getBoolean("experimental-use-packetevents", false);
         this.parser = section.getString("message-parser", "adventure");
+        this.defaultTranslationType = section.getString("default-translation-type", "legacy");
+        this.safeTranslations = section.getBoolean("safe-translations", true);
+        Configuration platformVariants = section.getSection("platform-variants");
+        if (platformVariants != null) {
+            this.platformVariants = platformVariants.getBoolean("enabled", true);
+            this.platformVariantsFolder = platformVariants.getString("folder", "platforms");
+            this.platformVariantsSyntax = FeatureSyntax.fromSection(platformVariants);
+        } else {
+            this.platformVariants = true;
+            this.platformVariantsFolder = "platforms";
+            this.platformVariantsSyntax = new FeatureSyntax("plat", "args", "arg");
+        }
         Configuration languageCreation = section.getSection("language-creation");
         setupLanguageCreation(languageCreation);
 

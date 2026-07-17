@@ -13,7 +13,9 @@ import com.rexcantor64.triton.config.interfaces.YamlConfiguration;
 import com.rexcantor64.triton.debug.DumpManager;
 import com.rexcantor64.triton.dependencies.Dependency;
 import com.rexcantor64.triton.language.LanguageManager;
+import com.rexcantor64.triton.language.PlatformVariantManager;
 import com.rexcantor64.triton.language.TranslationManager;
+import com.rexcantor64.triton.language.TutorialFileManager;
 import com.rexcantor64.triton.language.parser.AdventureParser;
 import com.rexcantor64.triton.language.parser.LegacyParser;
 import com.rexcantor64.triton.language.parser.MessageParser;
@@ -69,6 +71,7 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
     @Deprecated
     private final LanguageParser languageParser = new LegacyLanguageParser();
     private TranslationManager translationManager;
+    private PlatformVariantManager platformVariantManager;
     private MessageParser messageParser;
     private TwinManager twinManager;
     protected final PlayerManager<P> playerManager;
@@ -141,6 +144,7 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
         languageManager = new LanguageManager(this);
         messagesConfig = new MessagesConfig();
         translationManager = new TranslationManager(this);
+        platformVariantManager = new PlatformVariantManager(this);
 
         LanguageMigration.migrate();
 
@@ -151,6 +155,7 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
         if (this.packetEventsManager != null) {
             this.packetEventsManager.onEnable();
         }
+        com.rexcantor64.triton.bridge.BedrockBridge.init();
     }
 
     public void onDisable() {
@@ -173,6 +178,8 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
         setupStorage();
         languageManager.setup();
         translationManager.setup();
+        platformVariantManager.setup();
+        TutorialFileManager.ensureTutorials(this);
         if (this.packetEventsManager != null) {
             this.packetEventsManager.onReload();
         }
@@ -210,6 +217,9 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
 
     public Configuration loadYAML(String fileName, String internalFileName) {
         File f = FileUtils.getResource(fileName + ".yml", internalFileName + ".yml");
+        if (fileName.equals("config")) {
+            checkAndAppendConfigProperties(f);
+        }
         try {
             val stream = new InputStreamReader(Files.newInputStream(f.toPath()), StandardCharsets.UTF_8);
             return ConfigurationProvider.getProvider(YamlConfiguration.class).load(stream);
@@ -218,6 +228,74 @@ public abstract class Triton<P extends TritonLanguagePlayer<?>, B extends Bridge
             logger.logError("You'll likely receive more errors on console until the next restart.");
         }
         return null;
+    }
+
+    private void checkAndAppendConfigProperties(File configFile) {
+        try {
+            if (!configFile.exists()) return;
+            List<String> lines = Files.readAllLines(configFile.toPath(), StandardCharsets.UTF_8);
+            boolean hasDefaultType = false;
+            boolean hasSafeTranslations = false;
+            boolean hasPlatformVariants = false;
+            int insertIndex = -1;
+            
+            for (int i = 0; i < lines.size(); i++) {
+                String line = lines.get(i).trim();
+                if (line.startsWith("default-translation-type:")) {
+                    hasDefaultType = true;
+                }
+                if (line.startsWith("safe-translations:")) {
+                    hasSafeTranslations = true;
+                }
+                if (line.startsWith("platform-variants:")) {
+                    hasPlatformVariants = true;
+                }
+                if (line.startsWith("message-parser:")) {
+                    insertIndex = i;
+                }
+            }
+            
+            if (!hasDefaultType || !hasSafeTranslations || !hasPlatformVariants) {
+                List<String> newLines = new ArrayList<>(lines);
+                int targetIndex = insertIndex != -1 ? insertIndex + 1 : newLines.size();
+                List<String> linesToAdd = new ArrayList<>();
+                
+                if (!hasDefaultType) {
+                    linesToAdd.add("");
+                    linesToAdd.add("# The default translation type/format to use when no prefix like [minimsg] or [triton_json] is specified.");
+                    linesToAdd.add("# Available values:");
+                    linesToAdd.add("# - legacy (standard Minecraft formatting codes like & and §)");
+                    linesToAdd.add("# - minimessage (Kyori Adventure MiniMessage formatting)");
+                    linesToAdd.add("default-translation-type: \"legacy\"");
+                }
+                
+                if (!hasSafeTranslations) {
+                    linesToAdd.add("");
+                    linesToAdd.add("# A security feature that prevents click action (command execution) injection from untrusted arguments.");
+                    linesToAdd.add("# If enabled, Triton will strip click actions from the final translated message if the original");
+                    linesToAdd.add("# translation template did not contain any click actions.");
+                    linesToAdd.add("safe-translations: true");
+                }
+
+                if (!hasPlatformVariants) {
+                    linesToAdd.add("");
+                    linesToAdd.add("# Java/Bedrock-specific placeholders. Every JSON file in the configured folder is loaded.");
+                    linesToAdd.add("# Each platform value may be a shared string or an object keyed by configured language names.");
+                    linesToAdd.add("# Usage: [plat]example.key[/plat] or %triton_plat_example.key%.");
+                    linesToAdd.add("platform-variants:");
+                    linesToAdd.add("  enabled: true");
+                    linesToAdd.add("  folder: \"platforms\"");
+                    linesToAdd.add("  syntax-lang: plat");
+                    linesToAdd.add("  syntax-arg: arg");
+                }
+                
+                newLines.addAll(targetIndex, linesToAdd);
+                Files.write(configFile.toPath(), newLines, StandardCharsets.UTF_8);
+                logger.logInfo("Successfully appended missing configuration options to config.yml!");
+            }
+        } catch (Exception e) {
+            logger.logError(e, "Failed to update config.yml with missing options.");
+        }
     }
 
     public abstract String getVersion();

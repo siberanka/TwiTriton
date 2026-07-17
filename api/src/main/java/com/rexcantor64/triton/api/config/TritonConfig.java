@@ -354,6 +354,33 @@ public interface TritonConfig {
     FeatureSyntax getDeathScreenSyntax();
 
     /**
+     * @return The default translation format/type when no prefix is specified.
+     * @since 4.1.0
+     */
+    String getDefaultTranslationType();
+
+    /**
+     * @return Whether to prevent click event injection from arguments.
+     * @since 4.1.0
+     */
+    boolean isSafeTranslations();
+
+    /**
+     * @return Whether Java/Bedrock platform-specific placeholders are enabled.
+     */
+    boolean isPlatformVariants();
+
+    /**
+     * @return The folder name used to load Java/Bedrock platform-specific placeholders.
+     */
+    String getPlatformVariantsFolder();
+
+    /**
+     * @return The syntax used by Java/Bedrock platform-specific placeholders.
+     */
+    FeatureSyntax getPlatformVariantsSyntax();
+
+    /**
      * @return The {@link com.rexcantor64.triton.api.config.FeatureSyntax FeatureSyntax} of "language-creation
      * .dialogs" in the config.
      * @since 4.1.0
@@ -361,3 +388,4 @@ public interface TritonConfig {
     FeatureSyntax getDialogsSyntax();
 
 }
+

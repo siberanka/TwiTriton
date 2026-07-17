@@ -231,6 +231,23 @@ public class VelocityLanguagePlayer extends TritonLanguagePlayer<Player> {
     }
 
     @Override
+    public void sendSuccessMessage(com.rexcantor64.triton.api.language.Language lang) {
+        getPlatformPlayer().ifPresent(parent -> {
+            try {
+                parent.sendMessage(Triton.get().getMessagesConfig().getMessageComponent("success.selector", ((com.rexcantor64.triton.language.Language) lang).getDisplayNameComponent()));
+            } catch (Throwable t) {
+                Triton.get().getLogger().logError(t, "Failed to send success message to Velocity player");
+            }
+        });
+    }
+
+    @Override
+    public void runSync(Runnable runnable) {
+        val server = VelocityTriton.asVelocity().getLoader().getServer();
+        server.getScheduler().buildTask(VelocityTriton.asVelocity().getLoader(), runnable).schedule();
+    }
+
+    @Override
     public String toString() {
         return "VelocityLanguagePlayer{" +
                 "uuid=" + this.getUUID() +

@@ -5,7 +5,9 @@ import com.google.gson.JsonObject;
 import com.rexcantor64.triton.Triton;
 import com.rexcantor64.triton.api.language.Localized;
 import com.rexcantor64.triton.api.players.LanguagePlayer;
+import com.rexcantor64.triton.dependencies.Dependency;
 import com.rexcantor64.triton.language.Language;
+import com.rexcantor64.triton.loader.utils.LoaderFlag;
 import com.rexcantor64.triton.player.PlayerManager;
 import com.rexcantor64.triton.plugin.PluginLoader;
 import com.rexcantor64.triton.spigot.banners.BannerBuilder;
@@ -94,16 +96,39 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
     }
 
     @Override
+    public void onLoad() {
+        super.onLoad();
+
+        if (this.packetEventsManager != null || ProtocolLibManager.isProtocolLibInstalled()) {
+            return;
+        }
+
+        getLogger().logWarning("ProtocolLib was not found. Falling back to PacketEvents for packet translation.");
+        val dependencyManager = Triton.get().getLoader().getDependencyManager();
+        if (dependencyManager.hasLoaderFlag(LoaderFlag.VENDOR_PACKET_EVENTS)) {
+            dependencyManager.loadDependency(Dependency.PACKET_EVENTS_API);
+        }
+        initPacketEventsManager();
+        this.packetEventsManager.onLoad();
+    }
+
+    @Override
     public void onEnable() {
         super.onEnable();
 
-        if (!this.getConfig().isUsePacketEvents()) {
+        if (this.packetEventsManager == null) {
             if (!ProtocolLibManager.isProtocolLibAvailable()) {
                 getLogger().logError("Shutting down...");
                 Bukkit.getPluginManager().disablePlugin(getJavaPlugin());
                 return;
             }
-            this.protocolLibRefresher = ProtocolLibManager.registerProtocolLibListeners();
+            this.protocolLibRefresher = ProtocolLibManager.registerProtocolLibListeners(false);
+        } else if (ProtocolLibManager.isProtocolLibInstalled()) {
+            if (ProtocolLibManager.isProtocolLibAvailable(false)) {
+                this.protocolLibRefresher = ProtocolLibManager.registerProtocolLibListeners(true);
+            } else {
+                getLogger().logWarning("ProtocolLib fallback is unavailable. PacketEvents-supported modules will continue working, but signs and advancements cannot be intercepted.");
+            }
         }
 
         Metrics metrics = new Metrics(getJavaPlugin(), 5606);
@@ -195,6 +220,10 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
         SpigotLanguagePlayer languagePlayer = (SpigotLanguagePlayer) genericLanguagePlayer;
 
         languagePlayer.toBukkit().ifPresent(player -> {
+            if (com.rexcantor64.triton.bridge.BedrockBridge.openLanguageSelectionForm(player.getUniqueId())) {
+                return;
+            }
+
             val commandOverride = getConfig().getOpenSelectorCommandOverride();
             if (commandOverride != null && !commandOverride.isEmpty()) {
                 player.performCommand(commandOverride);
@@ -292,7 +321,7 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
         charts.add(new SimplePie(
                 "packet_interception_backend",
                 () -> {
-                    if (this.getConfig().isUsePacketEvents()) {
+                    if (this.packetEventsManager != null) {
                         return "PacketEvents";
                     }
                     if (this.getConfig().isAsyncProtocolLib()) {

@@ -126,10 +126,15 @@ public class SpigotLanguagePlayer extends TritonLanguagePlayer<Player> {
     }
 
     public void setLang(Language lang, boolean sendToBungee) {
-        PlayerChangeLanguageSpigotEvent event = new PlayerChangeLanguageSpigotEvent(this, this.lang, lang);
+        Language oldLang = this.lang;
+        this.lang = lang;
+        PlayerChangeLanguageSpigotEvent event = new PlayerChangeLanguageSpigotEvent(this, oldLang, lang);
         Bukkit.getPluginManager().callEvent(event);
-        if (event.isCancelled()) return;
-        boolean hasChanged = !Objects.equals(event.getNewLanguage(), this.lang);
+        if (event.isCancelled()) {
+            this.lang = oldLang;
+            return;
+        }
+        boolean hasChanged = !Objects.equals(event.getNewLanguage(), oldLang);
         this.lang = event.getNewLanguage();
         if (this.waitingForClientLocale) {
             try {
@@ -178,6 +183,13 @@ public class SpigotLanguagePlayer extends TritonLanguagePlayer<Player> {
         super.refreshAll();
         getInterceptor().ifPresent((interceptor) -> {
             Triton.get().getScheduler().runAsync(() -> {
+                if (Triton.get().getPacketEventsManager() != null) {
+                    if (Triton.get().getConfig().isSigns()) {
+                        interceptor.refreshSigns(this);
+                    }
+                    interceptor.refreshAdvancements(this);
+                    return;
+                }
                 if (!Triton.get().getConfig().getAllowedEntityTypes().isEmpty() || Triton.get().getConfig().isHologramsAll()) {
                     interceptor.refreshEntities(this);
                 }
@@ -284,6 +296,27 @@ public class SpigotLanguagePlayer extends TritonLanguagePlayer<Player> {
                 }
             }
         });
+    }
+
+    @Override
+    public void sendSuccessMessage(com.rexcantor64.triton.api.language.Language lang) {
+        toBukkit().ifPresent(player -> {
+            try {
+                player.spigot().sendMessage(com.rexcantor64.triton.spigot.utils.BaseComponentUtils.serialize(
+                        Triton.get().getMessagesConfig().getMessageComponent("success.selector", ((com.rexcantor64.triton.language.Language) lang).getDisplayNameComponent())
+                ));
+            } catch (Throwable t) {
+                Triton.get().getLogger().logError(t, "Failed to send success message to Spigot player");
+            }
+        });
+    }
+
+    @Override
+    public void runSync(Runnable runnable) {
+        toBukkit().ifPresentOrElse(
+                player -> SpigotTriton.asSpigot().getScheduler().runSync(player, runnable),
+                () -> SpigotTriton.asSpigot().getScheduler().runSync(runnable)
+        );
     }
 
     @Override

@@ -29,7 +29,7 @@ public abstract class TritonLanguagePlayer<P> implements LanguagePlayer {
     private int connectionCount = 0;
 
     protected TritonLanguagePlayer() {
-        if (Triton.get().getConfig().isUsePacketEvents()) {
+        if (Triton.get().getPacketEventsManager() != null) {
             this.packetEventsRefresh = new PacketEventsRefresh(this);
         }
     }
@@ -39,6 +39,10 @@ public abstract class TritonLanguagePlayer<P> implements LanguagePlayer {
     public abstract void waitForClientLocale();
 
     public abstract @NotNull Optional<P> getPlatformPlayer();
+
+    public abstract void sendSuccessMessage(com.rexcantor64.triton.api.language.Language lang);
+
+    public abstract void runSync(Runnable runnable);
 
     public void refreshAll() {
         if (packetEventsRefresh != null) {

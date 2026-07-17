@@ -16,6 +16,11 @@ public class OpenSelectorCommand implements Command {
     public void handleCommand(CommandEvent event) throws NoPermissionException, PlayerOnlyCommandException, UnsupportedPlatformException {
         assertPlayersOnly(event);
 
+        java.util.UUID uuid = event.getSender().getUUID();
+        if (uuid != null && com.rexcantor64.triton.bridge.BedrockBridge.openLanguageSelectionForm(uuid)) {
+            return;
+        }
+
         if (event.getPlatform() != Platform.SPIGOT) {
             throw new UnsupportedPlatformException();
         }

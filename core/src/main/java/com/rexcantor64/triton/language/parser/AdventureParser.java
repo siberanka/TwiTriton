@@ -76,15 +76,93 @@ public class AdventureParser extends MessageParser {
      */
     @Override
     public @NotNull TranslationResult<Component> translateComponent(@NotNull Component component, @NotNull Localized language, @NotNull FeatureSyntax syntax) {
-        val configuration = new TranslationConfiguration<Component>(
+        Triton.get().getDumpManager().dump(component, language, syntax);
+
+        val configuration = createLanguageConfiguration(language, syntax);
+        TranslationResult<Component> result = translateComponentWithFallback(component, language, syntax, configuration);
+        if (result.isToRemove()) {
+            return result;
+        }
+
+        Component translatedComponent = result.getResult().orElse(component);
+        TranslationResult<Component> platformResult = translatePlatformComponent(translatedComponent, language);
+        if (platformResult.isToRemove()) {
+            return platformResult;
+        }
+        if (platformResult.getResult().isPresent()) {
+            Component platformComponent = platformResult.getResultRaw();
+            TranslationResult<Component> nestedLanguageResult = translateComponentWithFallback(platformComponent, language, syntax, configuration);
+            if (nestedLanguageResult.isToRemove()) {
+                return nestedLanguageResult;
+            }
+            if (nestedLanguageResult.getResult().isPresent()) {
+                return TranslationResult.changed(nestedLanguageResult.getResultRaw());
+            }
+            return TranslationResult.changed(platformComponent);
+        }
+        return result;
+    }
+
+    private @NotNull TranslationConfiguration<Component> createLanguageConfiguration(@NotNull Localized language,
+                                                                                    @NotNull FeatureSyntax syntax) {
+        return new TranslationConfiguration<Component>(
                 syntax,
                 Triton.get().getConfig().getDisabledLine(),
                 // TODO properly integrate this
-                (key, arguments) -> Triton.get().getTranslationManager().getTextComponentOr404(language, key, arguments),
+                (key, arguments) -> ((com.rexcantor64.triton.language.TranslationManager) Triton.get().getTranslationManager())
+                        .getTextComponentOr404(language, key, syntax, arguments),
                 Function.identity()
         );
+    }
 
-        Triton.get().getDumpManager().dump(component, language, syntax);
+    private @NotNull TranslationResult<Component> translateComponentWithFallback(
+            @NotNull Component component,
+            @NotNull Localized language,
+            @NotNull FeatureSyntax syntax,
+            @NotNull TranslationConfiguration<Component> configuration
+    ) {
+        TranslationResult<Component> result = translateComponent(component, configuration);
+        if (!result.isUnchanged()) {
+            return result;
+        }
+
+        String plainText = ComponentUtils.componentToString(component);
+        if (!ParserUtils.isDefaultLangSyntax(syntax) && ParserUtils.hasPattern(plainText, ParserUtils.DEFAULT_LANG_SYNTAX)) {
+            FeatureSyntax fallbackSyntax = ParserUtils.defaultLangSyntax(syntax);
+            result = translateComponent(component, createLanguageConfiguration(language, fallbackSyntax));
+            if (!result.isUnchanged()) {
+                return result;
+            }
+        }
+
+        String legacyText = ComponentUtils.serializeToLegacy(component);
+        if (ParserUtils.hasPattern(legacyText, syntax.getLang())
+                || (!ParserUtils.isDefaultLangSyntax(syntax) && ParserUtils.hasPattern(legacyText, ParserUtils.DEFAULT_LANG_SYNTAX))) {
+            TranslationResult<String> fallbackResult = new LegacyParser().translateString(legacyText, language, syntax);
+            if (fallbackResult.isToRemove()) {
+                return TranslationResult.remove();
+            }
+            if (fallbackResult.getResult().isPresent()) {
+                return TranslationResult.changed(ComponentUtils.deserializeFromLegacy(fallbackResult.getResultRaw()));
+            }
+        }
+
+        return TranslationResult.unchanged();
+    }
+
+    private @NotNull TranslationResult<Component> translatePlatformComponent(@NotNull Component component, @NotNull Localized language) {
+        if (!Triton.get().getConfig().isPlatformVariants()) {
+            return TranslationResult.unchanged();
+        }
+
+        FeatureSyntax syntax = Triton.get().getConfig().getPlatformVariantsSyntax();
+        val configuration = new TranslationConfiguration<Component>(
+                syntax,
+                Triton.get().getConfig().getDisabledLine(),
+                (key, arguments) -> Triton.get().getPlatformVariantManager()
+                        .getTextComponentOr404(language, key, syntax, arguments),
+                Function.identity()
+        );
 
         return translateComponent(component, configuration);
     }

@@ -140,7 +140,10 @@ public class BungeeListener extends MessageToMessageEncoder<DefinedPacket> {
                 .translateComponent(
                         ComponentUtils.deserializeFromJson(chatPacket.getMessage()),
                         owner,
-                        type != 2 ? config().getChatSyntax() : config().getActionbarSyntax()
+                        com.rexcantor64.triton.api.config.FeatureSyntax.withSafeTranslations(
+                                type != 2 ? config().getChatSyntax() : config().getActionbarSyntax(),
+                                type == 0
+                        )
                 )
                 .map(result -> {
                     if (type == 2 && protocolVersion <= ProtocolConstants.MINECRAFT_1_10) {
@@ -175,7 +178,10 @@ public class BungeeListener extends MessageToMessageEncoder<DefinedPacket> {
                 .translateComponent(
                         BaseComponentUtils.deserialize(systemChatPacket.getMessage()),
                         owner,
-                        type != 2 ? config().getChatSyntax() : config().getActionbarSyntax()
+                        com.rexcantor64.triton.api.config.FeatureSyntax.withSafeTranslations(
+                                type != 2 ? config().getChatSyntax() : config().getActionbarSyntax(),
+                                false
+                        )
                 )
                 .map(BaseComponentUtils::serializeToSingle)
                 .ifChanged(systemChatPacket::setMessage)

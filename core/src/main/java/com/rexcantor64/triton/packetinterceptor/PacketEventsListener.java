@@ -12,6 +12,7 @@ import com.rexcantor64.triton.Triton;
 import com.rexcantor64.triton.packetinterceptor.handlers.ActionBarPacketHandler;
 import com.rexcantor64.triton.packetinterceptor.handlers.BossBarPacketHandler;
 import com.rexcantor64.triton.packetinterceptor.handlers.ChatPacketHandler;
+import com.rexcantor64.triton.packetinterceptor.handlers.CommandPacketHandler;
 import com.rexcantor64.triton.packetinterceptor.handlers.DeathScreenPacketHandler;
 import com.rexcantor64.triton.packetinterceptor.handlers.DialogPacketHandler;
 import com.rexcantor64.triton.packetinterceptor.handlers.DisconnectPacketHandler;
@@ -87,6 +88,10 @@ public class PacketEventsListener implements PacketListener {
             updatedHandlers.put(PacketType.Play.Server.CHAT_MESSAGE, chatHandler::onChatMessagePacket);
             updatedHandlers.put(PacketType.Play.Server.DISGUISED_CHAT, chatHandler::onDisguisedChatPacket);
             updatedHandlers.put(PacketType.Play.Server.SYSTEM_CHAT_MESSAGE, chatHandler::onSystemChatMessagePacket);
+        }
+        if (config.isChat()) {
+            val commandHandler = new CommandPacketHandler(parser, config);
+            updatedHandlers.put(PacketType.Play.Server.TAB_COMPLETE, commandHandler::onTabCompletePacket);
         }
         if (config.isKick()) {
             val disconnectHandler = new DisconnectPacketHandler(parser, config);

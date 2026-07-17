@@ -96,7 +96,10 @@ public class ChatPacketHandler {
         parser.translateComponent(
                         packet.getMessage(),
                         languagePlayer,
-                        isActionbar ? actionbarSyntax : chatSyntax
+                        com.rexcantor64.triton.api.config.FeatureSyntax.withSafeTranslations(
+                                isActionbar ? actionbarSyntax : chatSyntax,
+                                false
+                        )
                 )
                 .ifChanged(result -> {
                     packet.setMessage(result);

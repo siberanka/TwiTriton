@@ -43,6 +43,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -112,12 +113,60 @@ public class LegacyParser extends MessageParser {
             @NotNull Localized language,
             @NotNull FeatureSyntax syntax
     ) {
-        val configuration = new TranslationConfiguration<SerializedComponent>(
+        val configuration = createLanguageConfiguration(language, syntax);
+
+        TranslationResult<SerializedComponent> result = translateComponentWithFallback(component, language, syntax, configuration);
+        if (result.isToRemove()) {
+            return result;
+        }
+
+        SerializedComponent translatedComponent = result.getResult().orElse(component);
+        TranslationResult<SerializedComponent> platformResult = translatePlatformComponent(translatedComponent, language);
+        if (platformResult.isToRemove()) {
+            return platformResult;
+        }
+        if (platformResult.getResult().isPresent()) {
+            SerializedComponent platformComponent = platformResult.getResultRaw();
+            TranslationResult<SerializedComponent> nestedLanguageResult = translateComponentWithFallback(platformComponent, language, syntax, configuration);
+            if (nestedLanguageResult.isToRemove()) {
+                return nestedLanguageResult;
+            }
+            if (nestedLanguageResult.getResult().isPresent()) {
+                return TranslationResult.changed(nestedLanguageResult.getResultRaw());
+            }
+            return TranslationResult.changed(platformComponent);
+        }
+        return result;
+    }
+
+    private @NotNull TranslationConfiguration<SerializedComponent> createLanguageConfiguration(
+            @NotNull Localized language,
+            @NotNull FeatureSyntax syntax
+    ) {
+        return new TranslationConfiguration<SerializedComponent>(
                 syntax,
                 Triton.get().getConfig().getDisabledLine(),
                 (key, arguments) -> Triton.get().getTranslationManager().getTextString(language, key)
                         .map(text -> this.handleTranslationType(text, language))
-                        .map(comp -> replaceArguments(comp, arguments))
+                        .map(comp -> {
+                            boolean hadClick = false;
+                            boolean safeMode = Triton.get().getConfig().isSafeTranslations() && syntax.isSafeTranslations();
+                            if (safeMode) {
+                                hadClick = !comp.getClickEvents().isEmpty();
+                            }
+                             SerializedComponent[] processedArguments = arguments;
+                             if (safeMode && arguments != null) {
+                                 processedArguments = new SerializedComponent[arguments.length];
+                                 for (int i = 0; i < arguments.length; i++) {
+                                     processedArguments[i] = sanitizeSerializedComponent(stripClickEvents(arguments[i]));
+                                 }
+                             }
+                            SerializedComponent finalComp = replaceArguments(comp, processedArguments);
+                            if (safeMode && !hadClick) {
+                                finalComp.getClickEvents().clear();
+                            }
+                            return finalComp;
+                        })
                         .orElseGet(() -> {
                             val notFoundComponent = new SerializedComponent(Triton.get().getTranslationManager().getTranslationNotFoundComponent());
                             val argsConcatenation = Arrays.stream(arguments).map(SerializedComponent::getText).collect(Collectors.joining(", "));
@@ -129,6 +178,71 @@ public class LegacyParser extends MessageParser {
                             return replaceArguments(notFoundComponent, new SerializedComponent(key), argsConcatenationComp);
                         }),
                 prevText -> Triton.get().getTranslationManager().matchPattern(prevText, language)
+        );
+    }
+
+    private @NotNull TranslationResult<SerializedComponent> translateComponentWithFallback(
+            @NotNull SerializedComponent component,
+            @NotNull Localized language,
+            @NotNull FeatureSyntax syntax,
+            @NotNull TranslationConfiguration<SerializedComponent> configuration
+    ) {
+        TranslationResult<SerializedComponent> result = translateComponent(component, configuration);
+        if (!result.isUnchanged()) {
+            return result;
+        }
+
+        if (!ParserUtils.isDefaultLangSyntax(syntax) && ParserUtils.hasPattern(component.getText(), ParserUtils.DEFAULT_LANG_SYNTAX)) {
+            return translateComponent(component, createLanguageConfiguration(language, ParserUtils.defaultLangSyntax(syntax)));
+        }
+
+        return result;
+    }
+
+    private @NotNull TranslationResult<SerializedComponent> translatePlatformComponent(
+            @NotNull SerializedComponent component,
+            @NotNull Localized language
+    ) {
+        if (!Triton.get().getConfig().isPlatformVariants()) {
+            return TranslationResult.unchanged();
+        }
+
+        FeatureSyntax syntax = Triton.get().getConfig().getPlatformVariantsSyntax();
+        val configuration = new TranslationConfiguration<SerializedComponent>(
+                syntax,
+                Triton.get().getConfig().getDisabledLine(),
+                (key, arguments) -> Triton.get().getPlatformVariantManager().getTextString(language, key)
+                        .map(text -> this.handleTranslationType(text, language))
+                        .map(comp -> {
+                            boolean hadClick = false;
+                            boolean safeMode = Triton.get().getConfig().isSafeTranslations() && syntax.isSafeTranslations();
+                            if (safeMode) {
+                                hadClick = !comp.getClickEvents().isEmpty();
+                            }
+                            SerializedComponent[] processedArguments = arguments;
+                            if (safeMode && arguments != null) {
+                                processedArguments = new SerializedComponent[arguments.length];
+                                for (int i = 0; i < arguments.length; i++) {
+                                    processedArguments[i] = sanitizeSerializedComponent(stripClickEvents(arguments[i]));
+                                }
+                            }
+                            SerializedComponent finalComp = replaceArguments(comp, processedArguments);
+                            if (safeMode && !hadClick) {
+                                finalComp.getClickEvents().clear();
+                            }
+                            return finalComp;
+                        })
+                        .orElseGet(() -> {
+                            val notFoundComponent = new SerializedComponent(Triton.get().getTranslationManager().getTranslationNotFoundComponent());
+                            val argsConcatenation = Arrays.stream(arguments).map(SerializedComponent::getText).collect(Collectors.joining(", "));
+                            val argsConcatenationComp = new SerializedComponent("[" + argsConcatenation + "]");
+                            for (SerializedComponent argument : arguments) {
+                                argsConcatenationComp.importFromComponent(argument);
+                            }
+
+                            return replaceArguments(notFoundComponent, new SerializedComponent(key), argsConcatenationComp);
+                        }),
+                Function.identity()
         );
 
         return translateComponent(component, configuration);
@@ -360,8 +474,59 @@ public class LegacyParser extends MessageParser {
         } else if (message.startsWith(JSON_TYPE_TAG)) {
             return new SerializedComponent(GsonComponentSerializer.gson().deserialize(message.substring(JSON_TYPE_TAG.length())));
         } else {
+            if (Triton.get().getConfig().getDefaultTranslationType().equalsIgnoreCase("minimessage") ||
+                Triton.get().getConfig().getDefaultTranslationType().equalsIgnoreCase("mini-message") ||
+                Triton.get().getConfig().getDefaultTranslationType().equalsIgnoreCase("minimsg") ||
+                com.rexcantor64.triton.language.TranslationManager.MINIMESSAGE_DETECTION_PATTERN.matcher(message).find()) {
+                MiniMessage miniMessage = Triton.get().getTranslationManager().getMiniMessageInstanceForLanguage(language.getLanguage());
+                return new SerializedComponent(miniMessage.deserialize(message));
+            }
             return new SerializedComponent(ComponentUtils.translateAlternateColorCodes(message));
         }
+    }
+
+    private @NotNull SerializedComponent stripClickEvents(@NotNull SerializedComponent comp) {
+        if (comp == null) return null;
+        comp.getClickEvents().clear();
+        for (java.util.Map.Entry<UUID, TranslatableComponent> entry : comp.getTranslatableComponents().entrySet()) {
+            if (entry.getValue() != null) {
+                entry.setValue((TranslatableComponent) com.rexcantor64.triton.utils.ComponentUtils.stripClickEvents(entry.getValue()));
+            }
+        }
+        for (java.util.Map.Entry<UUID, HoverEvent<?>> entry : comp.getHoverEvents().entrySet()) {
+            HoverEvent<?> hover = entry.getValue();
+            if (hover != null && hover.action() == HoverEvent.Action.SHOW_TEXT) {
+                Component value = (Component) hover.value();
+                Component strippedValue = com.rexcantor64.triton.utils.ComponentUtils.stripClickEvents(value);
+                if (strippedValue != value) {
+                    entry.setValue(((HoverEvent<Component>) hover).value(strippedValue));
+                }
+            }
+        }
+        return comp;
+    }
+
+    private @NotNull SerializedComponent sanitizeSerializedComponent(@NotNull SerializedComponent comp) {
+        if (comp == null) return null;
+        if (comp.getText() != null) {
+            comp.setText(com.rexcantor64.triton.utils.ComponentUtils.sanitizeDelimiters(comp.getText()));
+        }
+        for (java.util.Map.Entry<UUID, TranslatableComponent> entry : comp.getTranslatableComponents().entrySet()) {
+            if (entry.getValue() != null) {
+                entry.setValue((TranslatableComponent) com.rexcantor64.triton.utils.ComponentUtils.sanitizeComponent(entry.getValue()));
+            }
+        }
+        for (java.util.Map.Entry<UUID, HoverEvent<?>> entry : comp.getHoverEvents().entrySet()) {
+            HoverEvent<?> hover = entry.getValue();
+            if (hover != null && hover.action() == HoverEvent.Action.SHOW_TEXT) {
+                Component value = (Component) hover.value();
+                Component sanitizedValue = com.rexcantor64.triton.utils.ComponentUtils.sanitizeComponent(value);
+                if (sanitizedValue != value) {
+                    entry.setValue(((HoverEvent<Component>) hover).value(sanitizedValue));
+                }
+            }
+        }
+        return comp;
     }
 
     /**
