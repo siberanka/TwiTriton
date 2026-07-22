@@ -26,6 +26,7 @@ import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerPl
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerRecipeBookAdd;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerScoreboardObjective;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerScoreboardObjective.RenderType;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerUpdateScore;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnEntity;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSpawnPlayer;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerTeams;
@@ -34,9 +35,11 @@ import com.rexcantor64.triton.Triton;
 import com.rexcantor64.triton.config.MainConfig;
 import com.rexcantor64.triton.language.parser.MessageParser;
 import com.rexcantor64.triton.utils.RecipeTranslationUtils;
+import com.rexcantor64.triton.utils.ScoreboardTranslationUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import lombok.Value;
 import lombok.val;
 import net.kyori.adventure.text.Component;
 import org.jetbrains.annotations.Contract;
@@ -62,6 +65,7 @@ public class PacketEventsRefresh {
     private final Map<UUID, Component> bossBarMap = new ConcurrentHashMap<>();
     private final Map<String, ScoreBoardTeamInfo> teamsMap = new ConcurrentHashMap<>();
     private final Map<String, ScoreboardObjective> objectivesMap = new ConcurrentHashMap<>();
+    private final Map<ScoreboardScoreKey, ScoreboardScore> scoresMap = new ConcurrentHashMap<>();
     private @Nullable PacketEventsRefresh.PlayerListHeaderFooter playerListHeaderFooter;
     private final Map<UUID, Component> playerInfoMap = new ConcurrentHashMap<>();
     private final Map<Integer, Entity> entityMap = new ConcurrentHashMap<>();
@@ -157,6 +161,26 @@ public class PacketEventsRefresh {
      */
     public void discardScoreboardObjective(String objectiveName) {
         objectivesMap.remove(objectiveName);
+        scoresMap.keySet().removeIf(key -> key.getObjectiveName().equals(objectiveName));
+    }
+
+    public void saveScoreboardScore(@NotNull String entityName,
+                                    @NotNull String objectiveName,
+                                    @NotNull Optional<Integer> value,
+                                    @Nullable Component displayName,
+                                    @Nullable ScoreFormat scoreFormat) {
+        scoresMap.put(
+                new ScoreboardScoreKey(entityName, objectiveName),
+                new ScoreboardScore(value, displayName, scoreFormat)
+        );
+    }
+
+    public void discardScoreboardScore(@NotNull String entityName, @Nullable String objectiveName) {
+        if (objectiveName == null) {
+            scoresMap.keySet().removeIf(key -> key.getEntityName().equals(entityName));
+            return;
+        }
+        scoresMap.remove(new ScoreboardScoreKey(entityName, objectiveName));
     }
 
     /**
@@ -382,6 +406,7 @@ public class PacketEventsRefresh {
             val syntax = cfg.getScoreboardSyntax();
             updateScoreboardTeams(user, syntax, parser);
             updateScoreboardObjectives(user, syntax, parser);
+            updateScoreboardScores(user, syntax, parser);
         }
         if (cfg.isHologramsAll() || !cfg.getHolograms().isEmpty()) {
             val syntax = cfg.getHologramSyntax();
@@ -479,6 +504,53 @@ public class PacketEventsRefresh {
                     .getResultOrToRemove(Component::empty)
                     .ifPresent(packet::setDisplayName);
 
+            ScoreboardTranslationUtils.translateScoreFormat(
+                            info.getScoreFormat(),
+                            parser,
+                            languagePlayer,
+                            syntax
+                    )
+                    .getResultOrToRemove(() -> ScoreFormat.fixedScore(Component.empty()))
+                    .ifPresent(packet::setScoreFormat);
+
+            user.sendPacketSilently(packet);
+        }
+    }
+
+    private void updateScoreboardScores(@NotNull User user, @NotNull MainConfig.FeatureSyntax syntax, @NotNull MessageParser parser) {
+        for (val entry : scoresMap.entrySet()) {
+            val key = entry.getKey();
+            val info = entry.getValue();
+            val originalDisplayName = info.getDisplayName();
+            val originalScoreFormat = info.getScoreFormat();
+            Component displayName = originalDisplayName;
+            ScoreFormat scoreFormat = originalScoreFormat;
+
+            if (originalDisplayName != null) {
+                displayName = parser.translateComponent(originalDisplayName, languagePlayer, syntax)
+                        .mapToObj(Function.identity(), () -> originalDisplayName, Component::empty);
+            }
+
+            scoreFormat = ScoreboardTranslationUtils.translateScoreFormat(
+                            originalScoreFormat,
+                            parser,
+                            languagePlayer,
+                            syntax
+                    )
+                    .mapToObj(
+                            Function.identity(),
+                            () -> originalScoreFormat,
+                            () -> ScoreFormat.fixedScore(Component.empty())
+                    );
+
+            val packet = new WrapperPlayServerUpdateScore(
+                    key.getEntityName(),
+                    WrapperPlayServerUpdateScore.Action.CREATE_OR_UPDATE_ITEM,
+                    key.getObjectiveName(),
+                    info.getValue().orElse(0),
+                    displayName,
+                    scoreFormat
+            );
             user.sendPacketSilently(packet);
         }
     }
@@ -742,6 +814,19 @@ public class PacketEventsRefresh {
         private final Component displayName;
         private final RenderType renderType;
         private final ScoreFormat scoreFormat;
+    }
+
+    @Value
+    private static class ScoreboardScoreKey {
+        String entityName;
+        String objectiveName;
+    }
+
+    @Value
+    private static class ScoreboardScore {
+        Optional<Integer> value;
+        @Nullable Component displayName;
+        @Nullable ScoreFormat scoreFormat;
     }
 
     @RequiredArgsConstructor

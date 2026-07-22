@@ -1,11 +1,15 @@
 package com.rexcantor64.triton.packetinterceptor.handlers;
 
 import com.github.retrooper.packetevents.event.PacketSendEvent;
+import com.github.retrooper.packetevents.protocol.score.ScoreFormat;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerScoreboardObjective;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerResetScore;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerTeams;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerUpdateScore;
 import com.rexcantor64.triton.config.MainConfig;
 import com.rexcantor64.triton.language.parser.MessageParser;
 import com.rexcantor64.triton.player.TritonLanguagePlayer;
+import com.rexcantor64.triton.utils.ScoreboardTranslationUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 import net.kyori.adventure.text.Component;
@@ -111,6 +115,7 @@ public class ScoreboardPacketHandler {
         }
 
         val originalDisplayName = packet.getDisplayName();
+        val originalScoreFormat = packet.getScoreFormat();
 
         parser.translateComponent(
                         originalDisplayName,
@@ -123,16 +128,73 @@ public class ScoreboardPacketHandler {
                     event.markForReEncode(true);
                 });
 
+        ScoreboardTranslationUtils.translateScoreFormat(originalScoreFormat, parser, languagePlayer, syntax)
+                .getResultOrToRemove(() -> ScoreFormat.fixedScore(Component.empty()))
+                .ifPresent(result -> {
+                    packet.setScoreFormat(result);
+                    event.markForReEncode(true);
+                });
+
         if (event.needsReEncode()) {
             languagePlayer.getPacketEventsRefresh().saveScoreboardObjective(
                     packet.getName(),
                     originalDisplayName,
                     packet.getRenderType(),
-                    packet.getScoreFormat()
+                    originalScoreFormat
             );
         } else {
             languagePlayer.getPacketEventsRefresh().discardScoreboardObjective(packet.getName());
         }
+    }
+
+    public void onUpdateScorePacket(@NotNull PacketSendEvent event, @NotNull TritonLanguagePlayer<?> languagePlayer) {
+        val packet = new WrapperPlayServerUpdateScore(event);
+        val entityName = packet.getEntityName();
+        val objectiveName = packet.getObjectiveName();
+
+        if (packet.getAction() == WrapperPlayServerUpdateScore.Action.REMOVE_ITEM) {
+            languagePlayer.getPacketEventsRefresh().discardScoreboardScore(entityName, objectiveName);
+            return;
+        }
+
+        val originalDisplayName = packet.getEntityDisplayName();
+        val originalScoreFormat = packet.getScoreFormat();
+        boolean changed = false;
+
+        if (originalDisplayName != null) {
+            val result = parser.translateComponent(originalDisplayName, languagePlayer, syntax);
+            result.getResultOrToRemove(Component::empty).ifPresent(packet::setEntityDisplayName);
+            changed = !result.isUnchanged();
+        }
+
+        val scoreFormatResult = ScoreboardTranslationUtils.translateScoreFormat(
+                originalScoreFormat,
+                parser,
+                languagePlayer,
+                syntax
+        );
+        scoreFormatResult
+                .getResultOrToRemove(() -> ScoreFormat.fixedScore(Component.empty()))
+                .ifPresent(packet::setScoreFormat);
+        changed |= !scoreFormatResult.isUnchanged();
+
+        if (changed) {
+            event.markForReEncode(true);
+            languagePlayer.getPacketEventsRefresh().saveScoreboardScore(
+                    entityName,
+                    objectiveName,
+                    packet.getValue(),
+                    originalDisplayName,
+                    originalScoreFormat
+            );
+        } else {
+            languagePlayer.getPacketEventsRefresh().discardScoreboardScore(entityName, objectiveName);
+        }
+    }
+
+    public void onResetScorePacket(@NotNull PacketSendEvent event, @NotNull TritonLanguagePlayer<?> languagePlayer) {
+        val packet = new WrapperPlayServerResetScore(event);
+        languagePlayer.getPacketEventsRefresh().discardScoreboardScore(packet.getTargetName(), packet.getObjective());
     }
 
 }

@@ -107,6 +107,8 @@ public class PacketEventsListener implements PacketListener {
             val scoreboardHandler = new ScoreboardPacketHandler(parser, config);
             updatedHandlers.put(PacketType.Play.Server.TEAMS, scoreboardHandler::onTeamsPacket);
             updatedHandlers.put(PacketType.Play.Server.SCOREBOARD_OBJECTIVE, scoreboardHandler::onObjectivePacket);
+            updatedHandlers.put(PacketType.Play.Server.UPDATE_SCORE, scoreboardHandler::onUpdateScorePacket);
+            updatedHandlers.put(PacketType.Play.Server.RESET_SCORE, scoreboardHandler::onResetScorePacket);
         }
         if (config.isTab() || shouldTranslatePlayers) {
             val tabHandler = new TabPacketHandler(parser, config, shouldTranslatePlayers);

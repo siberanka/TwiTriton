@@ -18,6 +18,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.Value;
 import lombok.val;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
@@ -69,6 +70,8 @@ public class SpigotLanguagePlayer extends TritonLanguagePlayer<Player> {
     private final Map<String, ScoreboardObjective> objectivesMap = new ConcurrentHashMap<>();
     @Getter
     private final Map<String, ScoreboardTeam> teamsMap = new ConcurrentHashMap<>();
+    @Getter
+    private final Map<ScoreboardScoreKey, ScoreboardScore> scoresMap = new ConcurrentHashMap<>();
 
     @Getter
     private final Map<SignLocation, Sign> signs = new ConcurrentHashMap<>();
@@ -92,6 +95,7 @@ public class SpigotLanguagePlayer extends TritonLanguagePlayer<Player> {
 
     public void removeScoreboardObjective(String name) {
         this.objectivesMap.remove(name);
+        this.scoresMap.keySet().removeIf(key -> key.getObjectiveName().equals(name));
     }
 
     public void setScoreboardTeam(String name, ScoreboardTeam team) {
@@ -100,6 +104,25 @@ public class SpigotLanguagePlayer extends TritonLanguagePlayer<Player> {
 
     public void removeScoreboardTeam(String name) {
         this.teamsMap.remove(name);
+    }
+
+    public void setScoreboardScore(String entityName,
+                                   String objectiveName,
+                                   int value,
+                                   @Nullable String displayJson,
+                                   @Nullable WrappedNumberFormat numberFormat) {
+        this.scoresMap.put(
+                new ScoreboardScoreKey(entityName, objectiveName),
+                new ScoreboardScore(value, displayJson, numberFormat)
+        );
+    }
+
+    public void removeScoreboardScore(String entityName, @Nullable String objectiveName) {
+        if (objectiveName == null) {
+            this.scoresMap.keySet().removeIf(key -> key.getEntityName().equals(entityName));
+            return;
+        }
+        this.scoresMap.remove(new ScoreboardScoreKey(entityName, objectiveName));
     }
 
     public void saveSign(SignLocation location, MinecraftKey tileEntityType, NbtCompound nbtCompound) {
@@ -347,6 +370,19 @@ public class SpigotLanguagePlayer extends TritonLanguagePlayer<Player> {
         private Object collisionRule; // object since type has changed on ProtocolLib #743
         private EnumWrappers.ChatFormatting color;
         private int options;
+    }
+
+    @Value
+    public static class ScoreboardScoreKey {
+        String entityName;
+        String objectiveName;
+    }
+
+    @Value
+    public static class ScoreboardScore {
+        int value;
+        @Nullable String displayJson;
+        @Nullable WrappedNumberFormat numberFormat;
     }
 
     @Data

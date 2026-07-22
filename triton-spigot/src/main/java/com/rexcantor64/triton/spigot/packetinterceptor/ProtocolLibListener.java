@@ -194,9 +194,9 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
             packetHandlers.put(PacketType.Play.Server.SCOREBOARD_OBJECTIVE, asAsync(this::handleScoreboardObjective));
             // Register the packets below so their order is kept between all scoreboard packets
             packetHandlers.put(PacketType.Play.Server.SCOREBOARD_DISPLAY_OBJECTIVE, ASYNC_PASSTHROUGH);
-            packetHandlers.put(PacketType.Play.Server.SCOREBOARD_SCORE, ASYNC_PASSTHROUGH);
+            packetHandlers.put(PacketType.Play.Server.SCOREBOARD_SCORE, asAsync(this::handleScoreboardScore));
             if (MinecraftVersion.v1_20_4.atOrAbove()) {
-                packetHandlers.put(PacketType.Play.Server.RESET_SCORE, ASYNC_PASSTHROUGH);
+                packetHandlers.put(PacketType.Play.Server.RESET_SCORE, asAsync(this::handleResetScore));
             }
         }
         packetHandlers.put(PacketType.Play.Server.WINDOW_ITEMS, asAsync(this::handleWindowItems));
@@ -749,6 +749,7 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
                 .getResultOrToRemove(Component::empty)
                 .map(WrappedComponentUtils::serialize)
                 .ifPresent(result -> chatComponentsModifier.writeSafely(0, result));
+
     }
 
     private void handleKickDisconnect(PacketEvent packet, SpigotLanguagePlayer languagePlayer) {
@@ -984,6 +985,120 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
                 .getResultOrToRemove(Component::empty)
                 .map(WrappedComponentUtils::serialize)
                 .ifPresent(result -> chatComponentsModifier.writeSafely(0, result));
+
+        if (numberFormat instanceof WrappedNumberFormat.Fixed) {
+            val fixed = (WrappedNumberFormat.Fixed) numberFormat;
+            parser().translateComponent(
+                            WrappedComponentUtils.deserialize(fixed.getContent()),
+                            languagePlayer,
+                            main.getConfig().getScoreboardSyntax()
+                    )
+                    .getResultOrToRemove(Component::empty)
+                    .map(WrappedComponentUtils::serialize)
+                    .map(WrappedNumberFormat::fixed)
+                    .ifPresent(result -> {
+                        if (MinecraftVersion.v1_20_5.atOrAbove()) {
+                            packet.getPacket().getOptionals(BukkitConverters.getWrappedNumberFormatConverter())
+                                    .writeSafely(0, Optional.of(result));
+                        } else {
+                            packet.getPacket().getNumberFormats().writeSafely(0, result);
+                        }
+                    });
+        }
+    }
+
+    private void handleScoreboardScore(PacketEvent packet, SpigotLanguagePlayer languagePlayer) {
+        if (!main.getConfig().isScoreboards() || !WrappedNumberFormat.isSupported()) return;
+
+        val strings = packet.getPacket().getStrings();
+        val entityName = strings.readSafely(0);
+        val objectiveName = strings.readSafely(1);
+        if (entityName == null || objectiveName == null) return;
+
+        val originalDisplayName = readScoreDisplayName(packet.getPacket());
+        val originalNumberFormat = readScoreNumberFormat(packet.getPacket());
+        boolean changed = false;
+
+        if (originalDisplayName != null) {
+            val result = parser().translateComponent(
+                    WrappedComponentUtils.deserialize(originalDisplayName),
+                    languagePlayer,
+                    main.getConfig().getScoreboardSyntax()
+            );
+            result.getResultOrToRemove(Component::empty)
+                    .map(WrappedComponentUtils::serialize)
+                    .ifPresent(translated -> writeScoreDisplayName(packet.getPacket(), translated));
+            changed = !result.isUnchanged();
+        }
+
+        if (originalNumberFormat instanceof WrappedNumberFormat.Fixed) {
+            val fixed = (WrappedNumberFormat.Fixed) originalNumberFormat;
+            val result = parser().translateComponent(
+                    WrappedComponentUtils.deserialize(fixed.getContent()),
+                    languagePlayer,
+                    main.getConfig().getScoreboardSyntax()
+            );
+            result.getResultOrToRemove(Component::empty)
+                    .map(WrappedComponentUtils::serialize)
+                    .map(WrappedNumberFormat::fixed)
+                    .ifPresent(translated -> writeScoreNumberFormat(packet.getPacket(), translated));
+            changed |= !result.isUnchanged();
+        }
+
+        if (changed) {
+            val score = packet.getPacket().getIntegers().readSafely(0);
+            languagePlayer.setScoreboardScore(
+                    entityName,
+                    objectiveName,
+                    score == null ? 0 : score,
+                    originalDisplayName == null ? null : originalDisplayName.getJson(),
+                    originalNumberFormat
+            );
+        } else {
+            languagePlayer.removeScoreboardScore(entityName, objectiveName);
+        }
+    }
+
+    private void handleResetScore(PacketEvent packet, SpigotLanguagePlayer languagePlayer) {
+        val strings = packet.getPacket().getStrings();
+        val entityName = strings.readSafely(0);
+        if (entityName != null) {
+            languagePlayer.removeScoreboardScore(entityName, strings.readSafely(1));
+        }
+    }
+
+    private WrappedChatComponent readScoreDisplayName(PacketContainer packet) {
+        if (MinecraftVersion.v1_20_5.atOrAbove()) {
+            val optional = packet.getOptionals(BukkitConverters.getWrappedChatComponentConverter()).readSafely(0);
+            return optional == null ? null : optional.orElse(null);
+        }
+        return packet.getChatComponents().readSafely(0);
+    }
+
+    private void writeScoreDisplayName(PacketContainer packet, WrappedChatComponent displayName) {
+        if (MinecraftVersion.v1_20_5.atOrAbove()) {
+            packet.getOptionals(BukkitConverters.getWrappedChatComponentConverter())
+                    .writeSafely(0, Optional.of(displayName));
+        } else {
+            packet.getChatComponents().writeSafely(0, displayName);
+        }
+    }
+
+    private WrappedNumberFormat readScoreNumberFormat(PacketContainer packet) {
+        if (MinecraftVersion.v1_20_5.atOrAbove()) {
+            val optional = packet.getOptionals(BukkitConverters.getWrappedNumberFormatConverter()).readSafely(0);
+            return optional == null ? null : optional.orElse(null);
+        }
+        return packet.getNumberFormats().readSafely(0);
+    }
+
+    private void writeScoreNumberFormat(PacketContainer packet, WrappedNumberFormat numberFormat) {
+        if (MinecraftVersion.v1_20_5.atOrAbove()) {
+            packet.getOptionals(BukkitConverters.getWrappedNumberFormatConverter())
+                    .writeSafely(0, Optional.of(numberFormat));
+        } else {
+            packet.getNumberFormats().writeSafely(0, numberFormat);
+        }
     }
 
     private void handleDeathScreen(PacketEvent packet, SpigotLanguagePlayer languagePlayer) {
@@ -1172,6 +1287,30 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
 
             ProtocolLibrary.getProtocolManager().sendServerPacket(bukkitPlayer, packet, true);
         });
+
+        if (WrappedNumberFormat.isSupported()) {
+            player.getScoresMap().forEach((key, value) -> {
+                val packet = ProtocolLibrary.getProtocolManager()
+                        .createPacket(PacketType.Play.Server.SCOREBOARD_SCORE);
+                packet.getStrings().writeSafely(0, key.getEntityName());
+                packet.getStrings().writeSafely(1, key.getObjectiveName());
+                packet.getIntegers().writeSafely(0, value.getValue());
+
+                val displayName = value.getDisplayJson() == null
+                        ? null
+                        : WrappedChatComponent.fromJson(value.getDisplayJson());
+                if (MinecraftVersion.v1_20_5.atOrAbove()) {
+                    packet.getOptionals(BukkitConverters.getWrappedChatComponentConverter())
+                            .writeSafely(0, Optional.ofNullable(displayName));
+                    packet.getOptionals(BukkitConverters.getWrappedNumberFormatConverter())
+                            .writeSafely(0, Optional.ofNullable(value.getNumberFormat()));
+                } else {
+                    packet.getChatComponents().writeSafely(0, displayName);
+                    packet.getNumberFormats().writeSafely(0, value.getNumberFormat());
+                }
+                ProtocolLibrary.getProtocolManager().sendServerPacket(bukkitPlayer, packet, true);
+            });
+        }
     }
 
     public void refreshAdvancements(SpigotLanguagePlayer languagePlayer) {
