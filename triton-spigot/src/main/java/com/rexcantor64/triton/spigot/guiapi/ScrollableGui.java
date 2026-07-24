@@ -64,8 +64,8 @@ public class ScrollableGui extends Gui {
 
     public GuiButton getButton(int position, int currentPage) {
         int index = (currentPage - 1) * 45 + position;
-        if (items.size() <= index) return null;
-        return items.get(position);
+        if (items.size() <= index || index < 0) return null;
+        return items.get(index);
     }
 
     public int getSize() {

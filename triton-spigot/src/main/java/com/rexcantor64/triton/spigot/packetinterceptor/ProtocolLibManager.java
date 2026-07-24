@@ -66,7 +66,8 @@ public class ProtocolLibManager {
     public static @NotNull ProtocolLibRefresher registerProtocolLibListeners(boolean packetEventsPrimary) {
         val triton = SpigotTriton.asSpigot();
         ProtocolLibListener protocolLibListener;
-        if (triton.getConfig().isAsyncProtocolLib()) {
+        boolean useAsyncManager = triton.getConfig().isAsyncProtocolLib() && !packetEventsPrimary;
+        if (useAsyncManager) {
             protocolLibListener = new ProtocolLibListener(triton, packetEventsPrimary, HandlerFunction.HandlerType.ASYNC);
         } else {
             protocolLibListener = new ProtocolLibListener(triton, packetEventsPrimary, HandlerFunction.HandlerType.ASYNC, HandlerFunction.HandlerType.SYNC);
@@ -74,7 +75,7 @@ public class ProtocolLibManager {
 
         // Use delayed task to try to be the last registered listener and therefore have the final say in packets
         triton.getScheduler().runSyncLater(() -> {
-            if (triton.getConfig().isAsyncProtocolLib()) {
+            if (useAsyncManager) {
                 val asyncManager = ProtocolLibrary.getProtocolManager().getAsynchronousManager();
                 asyncManager.registerAsyncHandler(protocolLibListener).start();
                 asyncManager.registerAsyncHandler(new MotdPacketHandler()).start();
@@ -82,6 +83,9 @@ public class ProtocolLibManager {
             } else {
                 ProtocolLibrary.getProtocolManager().addPacketListener(protocolLibListener);
                 ProtocolLibrary.getProtocolManager().addPacketListener(new MotdPacketHandler());
+            }
+            if (packetEventsPrimary && triton.getConfig().isAsyncProtocolLib()) {
+                triton.getLogger().logInfo("PacketEvents is primary; ProtocolLib async queues are disabled for its narrow fallback.");
             }
             triton.getLogger().logInfo(packetEventsPrimary
                     ? "Registered ProtocolLib fallback listeners for PacketEvents"

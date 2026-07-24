@@ -22,9 +22,7 @@ public class BungeeDecoder extends MessageToMessageDecoder<PacketWrapper> {
         try {
             if (wrapper.packet instanceof ClientSettings) {
                 ClientSettings packet = (ClientSettings) wrapper.packet;
-                if (lp.isWaitingForClientLocale()) {
-                    lp.setLang(Triton.get().getLanguageManager().getLanguageByLocaleOrDefault(packet.getLocale()));
-                }
+                lp.setClientLocale(packet.getLocale());
             }
             out.add(wrapper);
         } catch (NullPointerException e) {

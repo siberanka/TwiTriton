@@ -38,6 +38,12 @@ public abstract class TritonLanguagePlayer<P> implements LanguagePlayer {
 
     public abstract void waitForClientLocale();
 
+    /**
+     * Receives a locale reported by the client. Platform implementations are responsible for
+     * switching to the thread that owns their player API before changing the language.
+     */
+    public abstract void setClientLocale(@NotNull String locale);
+
     public abstract @NotNull Optional<P> getPlatformPlayer();
 
     public abstract void sendSuccessMessage(com.rexcantor64.triton.api.language.Language lang);

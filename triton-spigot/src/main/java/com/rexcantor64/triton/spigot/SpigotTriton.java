@@ -99,17 +99,24 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
     public void onLoad() {
         super.onLoad();
 
-        if (this.packetEventsManager != null || ProtocolLibManager.isProtocolLibInstalled()) {
+        if (this.packetEventsManager != null) {
             return;
         }
 
-        getLogger().logWarning("ProtocolLib was not found. Falling back to PacketEvents for packet translation.");
-        val dependencyManager = Triton.get().getLoader().getDependencyManager();
-        if (dependencyManager.hasLoaderFlag(LoaderFlag.VENDOR_PACKET_EVENTS)) {
-            dependencyManager.loadDependency(Dependency.PACKET_EVENTS_API);
+        boolean hasPacketEventsPlugin = Bukkit.getPluginManager().getPlugin("packetevents") != null;
+        if (hasPacketEventsPlugin || !ProtocolLibManager.isProtocolLibInstalled()) {
+            if (hasPacketEventsPlugin) {
+                getLogger().logInfo("PacketEvents plugin detected. Initializing PacketEvents as primary packet interceptor.");
+            } else {
+                getLogger().logWarning("ProtocolLib was not found. Falling back to PacketEvents for packet translation.");
+            }
+            val dependencyManager = Triton.get().getLoader().getDependencyManager();
+            if (dependencyManager.hasLoaderFlag(LoaderFlag.VENDOR_PACKET_EVENTS)) {
+                dependencyManager.loadDependency(Dependency.PACKET_EVENTS_API);
+            }
+            initPacketEventsManager();
+            this.packetEventsManager.onLoad();
         }
-        initPacketEventsManager();
-        this.packetEventsManager.onLoad();
     }
 
     @Override
@@ -186,8 +193,19 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
 
     @Override
     public void reload() {
+        if (this.guiManager != null) {
+            this.guiManager.closeAllMenus();
+        }
+        com.rexcantor64.triton.performance.AdaptiveLoadManager.get().clearCache();
         super.reload();
         this.bannerBuilder.flushCache();
+    }
+
+    public void onDisable() {
+        if (this.guiManager != null) {
+            this.guiManager.closeAllMenus();
+        }
+        super.onDisable();
     }
 
     @Override

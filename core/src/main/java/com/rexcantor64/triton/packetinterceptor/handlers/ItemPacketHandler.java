@@ -2,7 +2,9 @@ package com.rexcantor64.triton.packetinterceptor.handlers;
 
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.event.PacketSendEvent;
+import com.github.retrooper.packetevents.protocol.item.ItemStack;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerCraftRecipeResponse;
+import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerMerchantOffers;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerRecipeBookAdd;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerRecipeBookRemove;
 import com.github.retrooper.packetevents.wrapper.play.server.WrapperPlayServerSetCursorItem;
@@ -18,6 +20,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.NotNullByDefault;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.function.Consumer;
 
 @RequiredArgsConstructor
 @NotNullByDefault
@@ -141,6 +146,36 @@ public class ItemPacketHandler {
                     packet.setRecipeDisplay(newRecipe);
                     event.markForReEncode(true);
                 });
+    }
+
+    public void onMerchantOffersPacket(@NotNull PacketSendEvent event, @NotNull TritonLanguagePlayer<?> languagePlayer) {
+        val packet = new WrapperPlayServerMerchantOffers(event);
+        boolean changed = false;
+
+        for (val offer : packet.getMerchantOffers()) {
+            changed |= translateMerchantItem(offer.getFirstInputItem(), offer::setFirstInputItem, languagePlayer);
+            changed |= translateMerchantItem(offer.getSecondInputItem(), offer::setSecondInputItem, languagePlayer);
+            changed |= translateMerchantItem(offer.getOutputItem(), offer::setOutputItem, languagePlayer);
+        }
+
+        if (changed) {
+            event.markForReEncode(true);
+        }
+    }
+
+    private boolean translateMerchantItem(@Nullable ItemStack item,
+                                          @NotNull Consumer<ItemStack> replacement,
+                                          @NotNull TritonLanguagePlayer<?> languagePlayer) {
+        if (item == null || item.isEmpty()) {
+            return false;
+        }
+
+        val result = this.itemHandler.translateItem(item, languagePlayer);
+        if (!result.isModified()) {
+            return false;
+        }
+        replacement.accept(result.getModified());
+        return true;
     }
 
 

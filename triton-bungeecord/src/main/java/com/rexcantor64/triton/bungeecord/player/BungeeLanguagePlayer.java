@@ -119,6 +119,13 @@ public class BungeeLanguagePlayer extends TritonLanguagePlayer<ProxiedPlayer> {
         this.waitingForClientLocale = true;
     }
 
+    @Override
+    public void setClientLocale(@NotNull String locale) {
+        if (this.isWaitingForClientLocale()) {
+            this.setLang(Triton.get().getLanguageManager().getLanguageByLocaleOrDefault(locale));
+        }
+    }
+
     public Language getLang() {
         if (language == null)
             language = Triton.get().getLanguageManager().getMainLanguage();

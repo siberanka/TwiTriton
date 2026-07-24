@@ -108,6 +108,7 @@ public class VelocityLanguagePlayer extends TritonLanguagePlayer<Player> {
         this.waitingForClientLocale = true;
     }
 
+    @Override
     public void setClientLocale(String locale) {
         if (this.isWaitingForClientLocale()) {
             this.setLang(Triton.get().getLanguageManager().getLanguageByLocaleOrDefault(locale));

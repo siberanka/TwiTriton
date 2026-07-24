@@ -127,6 +127,9 @@ storage:
 
 # EXPERIMENTAL: Intercept and parse ProtocolLib packets asynchronously.
 # This might cause incompatibilities with other plugins.
+# When PacketEvents is enabled, Triton keeps ProtocolLib's narrow fallback out of its
+# async manager to avoid an extra queue and worker pressure. This option then applies
+# only when ProtocolLib is the primary packet backend.
 # When stable, this will be enabled by default.
 # Changing this REQUIRES a server restart.
 experimental-async-protocol-lib: false

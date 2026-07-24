@@ -232,11 +232,8 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
     }
 
     private void setupPacketEventsFallbackHandlers() {
-        if (MinecraftVersion.CAVES_CLIFFS_2.atOrAbove()) { // 1.18+
-            // PacketEvents does not currently translate merchant trade item contents.
-            packetHandlers.put(PacketType.Play.Server.OPEN_WINDOW_MERCHANT, asAsync(this::handleMerchantItems));
-        }
-        if (advancementsPacketHandler != null) {
+        if (advancementsPacketHandler != null && !MinecraftVersion.CONFIG_PHASE_PROTOCOL_UPDATE.atOrAbove()) {
+            // PacketEvents uses the modern advancement holder format from 1.20.2 onward.
             advancementsPacketHandler.registerPacketTypes(packetHandlers);
         }
         if (signPacketHandler != null) {
@@ -258,7 +255,7 @@ public class ProtocolLibListener implements PacketListener, ProtocolLibRefresher
                 .build();
 
         val receivingTypes = new ArrayList<PacketType>();
-        if (this.allowedTypes.contains(HandlerFunction.HandlerType.SYNC)) {
+        if (!packetEventsPrimary && this.allowedTypes.contains(HandlerFunction.HandlerType.SYNC)) {
             // only listen for these packets in the sync handler
             receivingTypes.add(PacketType.Play.Client.SETTINGS);
             if (MinecraftVersion.CONFIG_PHASE_PROTOCOL_UPDATE.atOrAbove()) { // MC 1.20.2

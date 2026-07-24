@@ -1,15 +1,20 @@
 package com.rexcantor64.triton.packetinterceptor;
 
+import com.github.retrooper.packetevents.PacketEvents;
 import com.github.retrooper.packetevents.event.PacketListener;
 import com.github.retrooper.packetevents.event.PacketReceiveEvent;
 import com.github.retrooper.packetevents.event.PacketSendEvent;
 import com.github.retrooper.packetevents.event.UserDisconnectEvent;
 import com.github.retrooper.packetevents.protocol.entity.type.EntityTypes;
+import com.github.retrooper.packetevents.manager.server.ServerVersion;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
 import com.github.retrooper.packetevents.protocol.packettype.PacketTypeCommon;
 import com.github.retrooper.packetevents.wrapper.login.client.WrapperLoginClientLoginStart;
+import com.github.retrooper.packetevents.wrapper.configuration.client.WrapperConfigClientSettings;
+import com.github.retrooper.packetevents.wrapper.play.client.WrapperPlayClientSettings;
 import com.rexcantor64.triton.Triton;
 import com.rexcantor64.triton.packetinterceptor.handlers.ActionBarPacketHandler;
+import com.rexcantor64.triton.packetinterceptor.handlers.AdvancementPacketHandler;
 import com.rexcantor64.triton.packetinterceptor.handlers.BossBarPacketHandler;
 import com.rexcantor64.triton.packetinterceptor.handlers.ChatPacketHandler;
 import com.rexcantor64.triton.packetinterceptor.handlers.CommandPacketHandler;
@@ -25,6 +30,7 @@ import com.rexcantor64.triton.packetinterceptor.handlers.TabPacketHandler;
 import com.rexcantor64.triton.packetinterceptor.handlers.TitlePacketHandler;
 import com.rexcantor64.triton.player.TritonLanguagePlayer;
 import lombok.val;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -110,6 +116,11 @@ public class PacketEventsListener implements PacketListener {
             updatedHandlers.put(PacketType.Play.Server.UPDATE_SCORE, scoreboardHandler::onUpdateScorePacket);
             updatedHandlers.put(PacketType.Play.Server.RESET_SCORE, scoreboardHandler::onResetScorePacket);
         }
+        if (config.isAdvancements()
+                && PacketEvents.getAPI().getServerManager().getVersion().isNewerThanOrEquals(ServerVersion.V_1_20_2)) {
+            val advancementHandler = new AdvancementPacketHandler(parser, config);
+            updatedHandlers.put(PacketType.Play.Server.UPDATE_ADVANCEMENTS, advancementHandler::onUpdateAdvancementsPacket);
+        }
         if (config.isTab() || shouldTranslatePlayers) {
             val tabHandler = new TabPacketHandler(parser, config, shouldTranslatePlayers);
             if (config.isTab()) {
@@ -167,12 +178,16 @@ public class PacketEventsListener implements PacketListener {
             updatedHandlers.put(PacketType.Play.Server.RECIPE_BOOK_ADD, itemHandler::onRecipeBookAddPacket);
             updatedHandlers.put(PacketType.Play.Server.RECIPE_BOOK_REMOVE, itemHandler::onRecipeBookRemovePacket);
             updatedHandlers.put(PacketType.Play.Server.CRAFT_RECIPE_RESPONSE, itemHandler::onCraftRecipeResponsePacket);
+            updatedHandlers.put(PacketType.Play.Server.MERCHANT_OFFERS, itemHandler::onMerchantOffersPacket);
         }
         if (config.isDialogs()) {
             val dialogHandler = new DialogPacketHandler(parser, config);
             updatedHandlers.put(PacketType.Configuration.Server.SHOW_DIALOG, dialogHandler::onConfigShowDialogPacket);
             updatedHandlers.put(PacketType.Play.Server.SHOW_DIALOG, dialogHandler::onPlayShowDialogPacket);
         }
+
+        updatedReceiveHandlers.put(PacketType.Play.Client.CLIENT_SETTINGS, this::onPlayClientSettingsPacket);
+        updatedReceiveHandlers.put(PacketType.Configuration.Client.CLIENT_SETTINGS, this::onConfigClientSettingsPacket);
 
         sendHandlers = Collections.unmodifiableMap(updatedHandlers);
         receiveHandlers = Collections.unmodifiableMap(updatedReceiveHandlers);
@@ -186,8 +201,14 @@ public class PacketEventsListener implements PacketListener {
         if (handler != null) {
             val uuid = event.getUser().getUUID();
             if (uuid != null) {
-                val languagePlayer = Triton.get().getPlayerManager().get(uuid);
-                handler.accept(event, languagePlayer);
+                try {
+                    val languagePlayer = Triton.get().getPlayerManager().get(uuid);
+                    com.rexcantor64.triton.performance.AdaptiveLoadManager.get()
+                            .updatePlayerCount(Triton.get().getPlayerManager().getAll().size());
+                    handler.accept(event, languagePlayer);
+                } catch (Throwable t) {
+                    Triton.get().getLogger().logDebug("Error processing outgoing packet %1 for player %2: %3", type, uuid, t.getMessage());
+                }
             }
         }
     }
@@ -196,20 +217,36 @@ public class PacketEventsListener implements PacketListener {
     public void onPacketReceive(PacketReceiveEvent event) {
         val type = event.getPacketType();
 
-        if (type == PacketType.Login.Client.LOGIN_START) {
-            val packet = new WrapperLoginClientLoginStart(event);
-            packet.getPlayerUUID().ifPresent(uuid -> {
-                event.getUser().getProfile().setUUID(uuid);
-                val languagePlayer = Triton.get().getPlayerManager().get(event.getUser().getUUID());
-                languagePlayer.increaseConnectionCount();
-            });
-        }
+        try {
+            if (type == PacketType.Login.Client.LOGIN_START) {
+                val packet = new WrapperLoginClientLoginStart(event);
+                packet.getPlayerUUID().ifPresent(uuid -> {
+                    event.getUser().getProfile().setUUID(uuid);
+                    val languagePlayer = Triton.get().getPlayerManager().get(uuid);
+                    languagePlayer.increaseConnectionCount();
+                });
+            }
 
-        val handler = receiveHandlers.get(type);
-        if (handler != null) {
-            val languagePlayer = Triton.get().getPlayerManager().get(event.getUser().getUUID());
-            handler.accept(event, languagePlayer);
+            val handler = receiveHandlers.get(type);
+            if (handler != null) {
+                val uuid = event.getUser().getUUID();
+                if (uuid != null) {
+                    handler.accept(event, Triton.get().getPlayerManager().get(uuid));
+                }
+            }
+        } catch (Throwable t) {
+            Triton.get().getLogger().logDebug("Error processing incoming packet %1: %2", type, t.getMessage());
         }
+    }
+
+    private void onPlayClientSettingsPacket(@NotNull PacketReceiveEvent event,
+                                            @NotNull TritonLanguagePlayer<?> languagePlayer) {
+        languagePlayer.setClientLocale(new WrapperPlayClientSettings(event).getLocale());
+    }
+
+    private void onConfigClientSettingsPacket(@NotNull PacketReceiveEvent event,
+                                              @NotNull TritonLanguagePlayer<?> languagePlayer) {
+        languagePlayer.setClientLocale(new WrapperConfigClientSettings(event).getLocale());
     }
 
     @Override

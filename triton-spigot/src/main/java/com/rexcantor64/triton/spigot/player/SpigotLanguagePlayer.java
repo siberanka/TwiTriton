@@ -36,6 +36,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class SpigotLanguagePlayer extends TritonLanguagePlayer<Player> {
 
@@ -55,6 +56,7 @@ public class SpigotLanguagePlayer extends TritonLanguagePlayer<Player> {
     private Component lastTabFooter;
     private final Map<UUID, String> bossBars = new ConcurrentHashMap<>();
     private boolean waitingForClientLocale = false;
+    private final AtomicBoolean clientLocaleUpdateQueued = new AtomicBoolean(false);
 
     @Getter
     private final Map<World, Map<Integer, Optional<String>>> entitiesMap = new ConcurrentHashMap<>();
@@ -192,6 +194,23 @@ public class SpigotLanguagePlayer extends TritonLanguagePlayer<Player> {
 
     public void waitForClientLocale() {
         this.waitingForClientLocale = true;
+    }
+
+    @Override
+    public void setClientLocale(@NotNull String locale) {
+        if (!this.waitingForClientLocale || !this.clientLocaleUpdateQueued.compareAndSet(false, true)) {
+            return;
+        }
+
+        runSync(() -> {
+            try {
+                if (this.waitingForClientLocale) {
+                    setLang(Triton.get().getLanguageManager().getLanguageByLocaleOrDefault(locale));
+                }
+            } finally {
+                this.clientLocaleUpdateQueued.set(false);
+            }
+        });
     }
 
     private Optional<ProtocolLibRefresher> getInterceptor() {
